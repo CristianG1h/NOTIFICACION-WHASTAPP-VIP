@@ -64,3 +64,15 @@ El panel muestra el QR directamente en el navegador, por lo que no necesitas She
 
 ## 7. Importante sobre Render Free
 Mantener `/health` recibiendo peticiones evita la inactividad mientras las peticiones sigan llegando, pero el almacenamiento local de un servicio Free sigue siendo temporal. Si Render reinicia o haces un redeploy, la sesión de WhatsApp puede requerir vinculación otra vez. El grupo no se pierde si guardaste su ID en `CONTROL_GROUP_ID`.
+
+## Corrección de build Puppeteer (V2)
+
+Si Render muestra `Failed to set up chrome-headless-shell` o intenta ejecutar `yarn`, entra en **Settings** del Web Service y usa exactamente:
+
+- Build Command: `bash render-build.sh`
+- Start Command: `npm start`
+- Node: `22.22.0` (el proyecto también incluye `.node-version`)
+
+Luego ve a **Manual Deploy > Clear build cache & deploy**. No uses solamente `Deploy latest commit` para corregir este error, porque el cache incompleto de Puppeteer puede conservarse.
+
+El proyecto incluye `.puppeteerrc.cjs` para que Chrome de Puppeteer quede en `.cache/puppeteer` dentro del build y no dependa del cache global defectuoso que aparece en el error.
