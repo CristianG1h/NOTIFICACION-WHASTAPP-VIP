@@ -1,3 +1,15 @@
+V6 - CORRECCION PAGO MANUAL EN RENDER / BAILEYS / MONGODB
+
+La V5 conservó Baileys y MongoDB, pero dejó MEDICONNECTA_LOOKUP=false y un config.example genérico.
+Por eso el pago manual volvió a mostrarse como "Pendiente de verificación manual".
+
+En Render usa:
+MEDICONNECTA_LOOKUP=true
+MEDICONNECTA_AUTH_MODE=public
+MEDICONNECTA_PAYMENT_PATH=pagado
+
+La sesión MongoDB y Baileys no cambian.
+
 VIP NOTIFICACIONES - actualización 24/09/2026
 
 CAMBIOS

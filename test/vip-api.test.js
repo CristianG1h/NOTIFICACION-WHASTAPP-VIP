@@ -49,3 +49,27 @@ test('404/auth failure and invalid pagination do not claim successful synchroniz
   await assert.rejects(vipApiSource(store, env, async () => ({ ok: true, status: 200, async json() { return { appointments: [s], nextCursor: 'repeat' }; } }), null).poll(), /Paginación/);
   assert.equal(store.status().appointments, 0);
 });
+
+test('an approved payment is not downgraded to manual_pending on a later provider miss', async t => {
+  const { store, env, s } = fixture(t);
+  let current = { ...s, payment: 'approved' };
+  let providerOk = true;
+  const fetcher = async () => ({
+    ok: true,
+    status: 200,
+    json: async () => ({ appointments: [current], nextCursor: null }),
+  });
+  const provider = {
+    async lookup() {
+      if (providerOk) return {};
+      throw new Error('temporal');
+    },
+  };
+  const source = vipApiSource(store, env, fetcher, provider);
+  await source.poll();
+  assert.equal(store.get(s.id).payment, 'approved');
+  providerOk = false;
+  current = { ...s, version: 2, payment: 'manual_pending' };
+  await source.poll();
+  assert.equal(store.get(s.id).payment, 'approved');
+});

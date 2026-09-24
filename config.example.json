@@ -4,8 +4,13 @@
   "doctors": {},
   "assignments": {},
   "mediconecta": {
-    "doctorIdPath": "",
+    "doctorIdPath": "medico",
     "formPath": "",
-    "formValues": { "completed": [], "pending": [] }
+    "formValues": { "completed": [], "pending": [] },
+    "formLookup": "bsl-wix-id",
+    "statusPath": "atendido",
+    "completedStatusValues": ["ATENDIDO"],
+    "paymentPath": "pagado",
+    "paymentApprovedValues": [true, 1, "true", "1", "PAGADO", "Pagado", "pagado"]
   }
 }

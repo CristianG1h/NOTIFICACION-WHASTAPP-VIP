@@ -28,9 +28,12 @@ export function providerFields(data, mapping) {
 }
 export function mediconecta(config, routes, env = process.env, fetcher = fetch) {
   if (env.MEDICONNECTA_LOOKUP !== 'true') return null;
-  const authMode = env.MEDICONNECTA_AUTH_MODE || 'bearer';
+  const authMode = env.MEDICONNECTA_AUTH_MODE || 'public';
   if (!['public', 'bearer'].includes(authMode)) throw new Error('MEDICONNECTA_AUTH_MODE inválido');
-  if ((authMode === 'bearer' && !env.MEDICONNECTA_TOKEN) || !routes.mediconecta?.doctorIdPath) throw new Error('Configura el acceso a MediConecta y mediconecta.doctorIdPath antes de activar la consulta');
+  const mapping = routes.mediconecta || {};
+  const hasReadableField = Boolean(mapping.doctorIdPath || mapping.paymentPath || mapping.statusPath || mapping.formLookup);
+  if (authMode === 'bearer' && !env.MEDICONNECTA_TOKEN) throw new Error('MEDICONNECTA_AUTH_MODE=bearer requiere MEDICONNECTA_TOKEN');
+  if (!hasReadableField) throw new Error('Configura al menos un campo de lectura de MediConecta antes de activar la consulta');
   const headers = { Accept: 'application/json', ...(env.MEDICONNECTA_TOKEN ? { Authorization: `Bearer ${env.MEDICONNECTA_TOKEN}` } : {}) };
   return {
     async lookup(id) {

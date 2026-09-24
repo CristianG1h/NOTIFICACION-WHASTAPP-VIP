@@ -28,9 +28,11 @@ services:
       - key: MEDICONNECTA_BASE_URL
         value: https://vip-mediconecta.app
       - key: MEDICONNECTA_LOOKUP
-        value: "false"
+        value: "true"
       - key: MEDICONNECTA_AUTH_MODE
-        value: bearer
+        value: public
+      - key: MEDICONNECTA_PAYMENT_PATH
+        value: pagado
       - key: REMINDER_MINUTES
         value: "15"
       - key: POLL_SECONDS

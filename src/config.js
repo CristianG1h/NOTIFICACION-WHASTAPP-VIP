@@ -80,6 +80,21 @@ export function routing(file = 'config.local.json', env = process.env) {
   }
   if (env.CONTROL_GROUP_ID) r.controlGroupId = env.CONTROL_GROUP_ID.trim();
 
+  // MediConecta: conservar el mapeo operativo usado por VIP aunque en Render no
+  // exista config.local.json. Esto es necesario para que un pago marcado
+  // manualmente como pagado=true se promueva a payment=approved.
+  r.mediconecta ||= {};
+  if (!r.mediconecta.doctorIdPath) r.mediconecta.doctorIdPath = env.MEDICONNECTA_DOCTOR_ID_PATH || 'medico';
+  if (!r.mediconecta.paymentPath) r.mediconecta.paymentPath = env.MEDICONNECTA_PAYMENT_PATH || 'pagado';
+  if (!Array.isArray(r.mediconecta.paymentApprovedValues) || r.mediconecta.paymentApprovedValues.length === 0) {
+    r.mediconecta.paymentApprovedValues = [true, 1, 'true', '1', 'PAGADO', 'Pagado', 'pagado'];
+  }
+  if (!r.mediconecta.statusPath) r.mediconecta.statusPath = env.MEDICONNECTA_STATUS_PATH || 'atendido';
+  if (!Array.isArray(r.mediconecta.completedStatusValues) || r.mediconecta.completedStatusValues.length === 0) {
+    r.mediconecta.completedStatusValues = ['ATENDIDO'];
+  }
+  if (!r.mediconecta.formLookup) r.mediconecta.formLookup = env.MEDICONNECTA_FORM_LOOKUP || 'bsl-wix-id';
+
   // Runtime-only choices (por ejemplo el grupo seleccionado desde /admin/whatsapp).
   // En Render Free este archivo es temporal; para conservar el grupo entre reinicios
   // copia el ID mostrado por el panel a CONTROL_GROUP_ID en Environment.

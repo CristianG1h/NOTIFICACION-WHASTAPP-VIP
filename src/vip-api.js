@@ -33,9 +33,22 @@ export function vipApiSource(store, env = process.env, fetcher = fetch, provider
       for (const s of records) {
         const previous = store.get(s.id);
         if (provider && s.status !== 'completed' && Date.parse(s.startsAt) > Date.now()) {
-          try { Object.assign(s, await provider.lookup(s.id)); }
-          catch { healthy = false; s.doctorId = 'PROVIDER_UNAVAILABLE'; s.form = 'unknown'; }
+          try {
+            Object.assign(s, await provider.lookup(s.id));
+          } catch (error) {
+            // Conserva el comportamiento seguro anterior: si MediConecta falla,
+            // no se adivina un médico ni se afirma un formulario. El pago aprobado
+            // se preserva más abajo para que un fallo temporal no lo degrade.
+            healthy = false;
+            s.doctorId = 'PROVIDER_UNAVAILABLE';
+            s.form = 'unknown';
+            console.error(`MediConecta ${s.id}: ${error.message || 'consulta fallida'}`);
+          }
         }
+        // Un pago ya aprobado no debe volver a "manual_pending" solo porque el
+        // lector de MediConecta no respondió en este ciclo. Estados terminales
+        // explícitos del backend (voided/declined/etc.) sí se respetan.
+        if (previous?.payment === 'approved' && s.payment === 'manual_pending') s.payment = 'approved';
         if (previous && ['startsAt', 'doctorId', 'status', 'payment', 'form', 'patientName'].every(k => previous[k] === s[k])) continue;
         s.version = Math.max(Date.now(), (previous?.version || 0) + 1);
         // On first connection, notify upcoming appointments; don't replay old history.

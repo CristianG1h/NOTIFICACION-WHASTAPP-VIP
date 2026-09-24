@@ -198,3 +198,13 @@ test('doctor reminder uses the dedicated medical panel URL', t => {
   assert.match(payload.text, /Panel médico: https:\/\/medico\.vip-mediconecta\.app\/panel-medico/);
   assert.doesNotMatch(payload.text, /\?_id=/);
 });
+
+test('MediConecta manual payment also accepts string 1', () => {
+  const mapping = {
+    doctorIdPath: 'medico',
+    formPath: '',
+    paymentPath: 'pagado',
+    paymentApprovedValues: [true, 1, 'true', '1', 'PAGADO', 'Pagado', 'pagado'],
+  };
+  assert.equal(providerFields({ medico: 'medico1', pagado: '1' }, mapping).payment, 'approved');
+});

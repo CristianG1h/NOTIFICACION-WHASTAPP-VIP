@@ -86,15 +86,22 @@ Ejemplo de estructura:
 
 Puedes dejar `controlGroupId` vacío y seleccionarlo luego desde la página web de administración.
 
-Si vas a consultar MediConecta:
+Para sincronizar el pago manual marcado desde MediConecta, usa:
 
 ```dotenv
 MEDICONNECTA_LOOKUP=true
+MEDICONNECTA_AUTH_MODE=public
+MEDICONNECTA_PAYMENT_PATH=pagado
+```
+
+Si tu despliegue de MediConecta exige autenticación Bearer, cambia únicamente el modo y agrega el token autorizado:
+
+```dotenv
 MEDICONNECTA_AUTH_MODE=bearer
 MEDICONNECTA_TOKEN=<token autorizado>
 ```
 
-Si aún no tienes acceso autorizado, deja `MEDICONNECTA_LOOKUP=false` para que el servicio pueda iniciar sin esa dependencia.
+Con `MEDICONNECTA_LOOKUP=false` el bot no puede ver `pagado=true` de MediConecta y el backend VIP puede seguir mostrando `manual_pending`.
 
 ## 4. Vincular WhatsApp sin terminal de Render
 
