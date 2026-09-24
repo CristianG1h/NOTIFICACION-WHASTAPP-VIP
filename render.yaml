@@ -1,0 +1,51 @@
+services:
+  - type: web
+    name: vip-notificaciones
+    runtime: node
+    plan: free
+    buildCommand: npm ci
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_VERSION
+        value: 22.17.0
+      - key: HOST
+        value: 0.0.0.0
+      - key: DATA_DIR
+        value: .data
+      - key: WHATSAPP_MODE
+        value: web
+      - key: SOURCE_MODE
+        value: vip-api
+      - key: VIP_API_BASE_URL
+        value: https://vip-teleconsulta-api.onrender.com
+      - key: DOCTOR_ID
+        value: medico_principal
+      - key: DOCTOR_FORCE_DEFAULT
+        value: "true"
+      - key: DOCTOR_PANEL_URL
+        value: https://medico.vip-mediconecta.app/panel-medico
+      - key: MEDICONNECTA_BASE_URL
+        value: https://vip-mediconecta.app
+      - key: MEDICONNECTA_LOOKUP
+        value: "false"
+      - key: MEDICONNECTA_AUTH_MODE
+        value: bearer
+      - key: REMINDER_MINUTES
+        value: "15"
+      - key: POLL_SECONDS
+        value: "15"
+      - key: API_TOKEN
+        sync: false
+      - key: DATA_KEY
+        sync: false
+      - key: VIP_API_TOKEN
+        sync: false
+      - key: DOCTOR_PHONE
+        sync: false
+      - key: CONTROL_GROUP_ID
+        sync: false
+      - key: MEDICONNECTA_TOKEN
+        sync: false
+      - key: ROUTING_JSON
+        sync: false

@@ -1,0 +1,15 @@
+node_modules/
+.env
+.data/
+.wwebjs_cache/
+config.local.json
+*.log
+.research/
+
+# Render/WhatsApp runtime
+.data/
+.wwebjs_auth/
+.wwebjs_cache/
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm

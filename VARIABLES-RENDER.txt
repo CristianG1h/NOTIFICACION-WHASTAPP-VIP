@@ -1,0 +1,32 @@
+OBLIGATORIAS
+===========
+API_TOKEN=<64 caracteres hexadecimales>
+DATA_KEY=<64 caracteres hexadecimales>
+VIP_API_TOKEN=<mismo valor que NOTIFICATIONS_READ_TOKEN del backend VIP Teleconsulta>
+DOCTOR_PHONE=<numero internacional solo digitos, ejemplo 573001234567>
+
+RECOMENDADAS
+============
+DOCTOR_ID=medico_principal
+DOCTOR_FORCE_DEFAULT=true
+CONTROL_GROUP_ID=<ID del grupo terminado en @g.us; se obtiene despues de conectar WhatsApp>
+
+YA PUEDEN QUEDAR CON ESTOS VALORES
+==================================
+HOST=0.0.0.0
+DATA_DIR=.data
+WHATSAPP_MODE=web
+SOURCE_MODE=vip-api
+VIP_API_BASE_URL=https://vip-teleconsulta-api.onrender.com
+DOCTOR_PANEL_URL=https://medico.vip-mediconecta.app/panel-medico
+MEDICONNECTA_BASE_URL=https://vip-mediconecta.app
+MEDICONNECTA_LOOKUP=false
+MEDICONNECTA_AUTH_MODE=bearer
+REMINDER_MINUTES=15
+POLL_SECONDS=15
+
+OPCIONALES / AVANZADAS
+======================
+MEDICONNECTA_TOKEN=
+ROUTING_JSON=
+CHROME_PATH=

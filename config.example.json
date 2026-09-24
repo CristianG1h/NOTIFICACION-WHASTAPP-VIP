@@ -1,0 +1,11 @@
+{
+  "controlGroupId": "",
+  "defaultDoctorId": "",
+  "doctors": {},
+  "assignments": {},
+  "mediconecta": {
+    "doctorIdPath": "",
+    "formPath": "",
+    "formValues": { "completed": [], "pending": [] }
+  }
+}

@@ -1,0 +1,30 @@
+VIP NOTIFICACIONES - actualización 24/09/2026
+
+CAMBIOS
+1. El enlace enviado al médico ahora es:
+   https://medico.vip-mediconecta.app/panel-medico
+
+2. El bot consulta el campo `pagado` de MediConecta.
+   - Si MediConecta devuelve pagado=true, el bot muestra: Pago: Pagado
+   - Si pagado=false, NO degrada un pago que ya haya sido aprobado por Wompi.
+
+3. El texto de payment=approved ahora se muestra como "Pagado".
+
+INSTALACIÓN
+- Detén el bot con Ctrl+C.
+- Copia el contenido de este ZIP dentro de la carpeta VIP-NOTIFICACIONES.
+- Acepta reemplazar los archivos existentes.
+- No borres .env, .data ni la sesión de WhatsApp.
+- Ejecuta:
+    npm.cmd test
+  Deben aprobar las pruebas.
+- Después ejecuta:
+    npm.cmd start
+
+PRUEBA
+- Marca una orden como PAGADO en MediConecta.
+- Espera el siguiente ciclo de sincronización (POLL_SECONDS, normalmente 15 s).
+- El grupo debe recibir una actualización con "Pago: Pagado".
+- Para probar el aviso al médico sin esperar a la ventana automática:
+    npm.cmd run test:doctor
+  El mensaje debe incluir "Panel médico: https://medico.vip-mediconecta.app/panel-medico".

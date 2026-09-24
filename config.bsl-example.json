@@ -1,0 +1,26 @@
+{
+  "controlGroupId": "",
+  "defaultDoctorId": "",
+  "doctors": {},
+  "assignments": {},
+  "mediconecta": {
+    "doctorIdPath": "medico",
+    "requireDoctorAlias": true,
+    "doctorAliases": {},
+    "formPath": "",
+    "formValues": {
+      "completed": [],
+      "pending": []
+    },
+    "formLookup": "bsl-wix-id",
+    "paymentPath": "pagado",
+    "paymentApprovedValues": [
+      true,
+      1,
+      "true",
+      "PAGADO",
+      "Pagado",
+      "pagado"
+    ]
+  }
+}
