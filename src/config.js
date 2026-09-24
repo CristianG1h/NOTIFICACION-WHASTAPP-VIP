@@ -89,6 +89,9 @@ export function routing(file = 'config.local.json', env = process.env) {
   if (!Array.isArray(r.mediconecta.paymentApprovedValues) || r.mediconecta.paymentApprovedValues.length === 0) {
     r.mediconecta.paymentApprovedValues = [true, 1, 'true', '1', 'PAGADO', 'Pagado', 'pagado'];
   }
+  if (!Array.isArray(r.mediconecta.paymentPendingValues) || r.mediconecta.paymentPendingValues.length === 0) {
+    r.mediconecta.paymentPendingValues = [false, 0, 'false', '0', 'NO PAGADO', 'No pagado', 'no pagado', 'PENDIENTE', 'Pendiente', 'pendiente'];
+  }
   if (!r.mediconecta.statusPath) r.mediconecta.statusPath = env.MEDICONNECTA_STATUS_PATH || 'atendido';
   if (!Array.isArray(r.mediconecta.completedStatusValues) || r.mediconecta.completedStatusValues.length === 0) {
     r.mediconecta.completedStatusValues = ['ATENDIDO'];

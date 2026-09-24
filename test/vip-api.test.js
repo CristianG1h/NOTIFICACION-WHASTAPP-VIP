@@ -73,3 +73,28 @@ test('an approved payment is not downgraded to manual_pending on a later provide
   await source.poll();
   assert.equal(store.get(s.id).payment, 'approved');
 });
+
+
+test('explicit MediConecta unpaid state downgrades approved and produces an update', async t => {
+  const { store, env, s } = fixture(t);
+  let paid = true;
+  const fetcher = async () => ({
+    ok: true, status: 200,
+    async json() { return { appointments: [{ ...s, version: paid ? 1 : 2, payment: 'manual_pending' }], nextCursor: null }; },
+  });
+  const provider = {
+    async lookup() { return { doctorId: 'YULI', form: 'unknown', payment: paid ? 'approved' : 'manual_pending' }; },
+  };
+  const source = vipApiSource(store, env, fetcher, provider);
+  await source.poll();
+  assert.equal(store.get(s.id).payment, 'approved');
+  await store.deliver({ async send() {} });
+
+  paid = false;
+  await source.poll();
+  assert.equal(store.get(s.id).payment, 'manual_pending');
+  const job = store.db.prepare("SELECT payload FROM jobs WHERE appointment=? AND kind='updated' AND state='pending' ORDER BY id DESC LIMIT 1").get(s.id);
+  assert.ok(job, 'debe crear una actualización cuando vuelve a No pagado');
+  const payload = store.unseal(job.payload);
+  assert.match(payload.text, /Pago: Pendiente de verificación manual/);
+});

@@ -6,11 +6,33 @@
   "mediconecta": {
     "doctorIdPath": "medico",
     "formPath": "",
-    "formValues": { "completed": [], "pending": [] },
+    "formValues": {
+      "completed": [],
+      "pending": []
+    },
     "formLookup": "bsl-wix-id",
     "statusPath": "atendido",
-    "completedStatusValues": ["ATENDIDO"],
+    "completedStatusValues": [
+      "ATENDIDO"
+    ],
     "paymentPath": "pagado",
-    "paymentApprovedValues": [true, 1, "true", "1", "PAGADO", "Pagado", "pagado"]
+    "paymentApprovedValues": [
+      true,
+      1,
+      "true",
+      "1",
+      "PAGADO",
+      "Pagado",
+      "pagado"
+    ],
+    "paymentPendingValues": [
+      false,
+      0,
+      "false",
+      "0",
+      "NO PAGADO",
+      "No pagado",
+      "no pagado"
+    ]
   }
 }

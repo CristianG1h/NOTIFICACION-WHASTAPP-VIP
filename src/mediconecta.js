@@ -16,13 +16,16 @@ export function providerFields(data, mapping) {
   const result = { doctorId: doctor || null, form };
   if (mapping.completedStatusValues?.includes(field(data, mapping.statusPath))) result.status = 'completed';
 
-  // MediConecta keeps the manual payment flag in HistoriaClinica.pagado.
-  // It may promote the VIP payment to approved, but never downgrade a payment
-  // that was already verified by Wompi in the VIP backend.
+  // MediConecta is authoritative for the manual payment switch.
+  // If the field is explicitly paid, promote to approved. If it is explicitly
+  // unpaid, return to manual_pending so a real Pago -> No pagado change is
+  // notified. If the field is absent/unknown, do not invent a payment state.
   if (mapping.paymentPath) {
     const providerPayment = field(data, mapping.paymentPath);
-    const approvedValues = mapping.paymentApprovedValues || [true, 1, 'true', 'PAGADO', 'Pagado', 'pagado'];
+    const approvedValues = mapping.paymentApprovedValues || [true, 1, 'true', '1', 'PAGADO', 'Pagado', 'pagado'];
+    const pendingValues = mapping.paymentPendingValues || [false, 0, 'false', '0', 'NO PAGADO', 'No pagado', 'no pagado', 'PENDIENTE', 'Pendiente', 'pendiente'];
     if (approvedValues.some(value => value === providerPayment)) result.payment = 'approved';
+    else if (pendingValues.some(value => value === providerPayment)) result.payment = 'manual_pending';
   }
   return result;
 }

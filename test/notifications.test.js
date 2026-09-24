@@ -176,7 +176,7 @@ test('real VIP SQLite schema: baseline, creation, payment and provider assignmen
   assert.equal(source.prepare('SELECT COUNT(*) AS n FROM requests').get().n, 2);
 });
 
-test('MediConecta manual paid flag promotes payment without downgrading unpaid records', () => {
+test('MediConecta manual paid flag synchronizes both paid and unpaid states', () => {
   const mapping = {
     doctorIdPath: 'medico',
     formPath: '',
@@ -185,7 +185,8 @@ test('MediConecta manual paid flag promotes payment without downgrading unpaid r
     paymentApprovedValues: [true, 1, 'true', 'PAGADO', 'Pagado', 'pagado'],
   };
   assert.equal(providerFields({ medico: 'medico1', pagado: true }, mapping).payment, 'approved');
-  assert.equal(providerFields({ medico: 'medico1', pagado: false }, mapping).payment, undefined);
+  assert.equal(providerFields({ medico: 'medico1', pagado: false }, mapping).payment, 'manual_pending');
+  assert.equal(providerFields({ medico: 'medico1', pagado: 'NO PAGADO' }, { ...mapping, paymentPendingValues: [false, 0, 'false', '0', 'NO PAGADO'] }).payment, 'manual_pending');
 });
 
 test('doctor reminder uses the dedicated medical panel URL', t => {

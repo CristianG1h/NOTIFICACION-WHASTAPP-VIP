@@ -21,6 +21,15 @@
       "PAGADO",
       "Pagado",
       "pagado"
+    ],
+    "paymentPendingValues": [
+      false,
+      0,
+      "false",
+      "0",
+      "NO PAGADO",
+      "No pagado",
+      "no pagado"
     ]
   }
 }

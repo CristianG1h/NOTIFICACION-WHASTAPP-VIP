@@ -32,23 +32,26 @@ export function vipApiSource(store, env = process.env, fetcher = fetch, provider
       let healthy = true;
       for (const s of records) {
         const previous = store.get(s.id);
+        let providerPaymentObserved = false;
         if (provider && s.status !== 'completed' && Date.parse(s.startsAt) > Date.now()) {
           try {
-            Object.assign(s, await provider.lookup(s.id));
+            const providerState = await provider.lookup(s.id);
+            providerPaymentObserved = Object.hasOwn(providerState, 'payment');
+            Object.assign(s, providerState);
           } catch (error) {
-            // Conserva el comportamiento seguro anterior: si MediConecta falla,
-            // no se adivina un médico ni se afirma un formulario. El pago aprobado
-            // se preserva más abajo para que un fallo temporal no lo degrade.
+            // If MediConecta is temporarily unavailable, keep a previously
+            // confirmed payment rather than inventing an unpaid state. A real
+            // explicit pagado=false response is handled above and DOES downgrade.
             healthy = false;
             s.doctorId = 'PROVIDER_UNAVAILABLE';
             s.form = 'unknown';
             console.error(`MediConecta ${s.id}: ${error.message || 'consulta fallida'}`);
           }
         }
-        // Un pago ya aprobado no debe volver a "manual_pending" solo porque el
-        // lector de MediConecta no respondió en este ciclo. Estados terminales
-        // explícitos del backend (voided/declined/etc.) sí se respetan.
-        if (previous?.payment === 'approved' && s.payment === 'manual_pending') s.payment = 'approved';
+        // Preserve approved only when MediConecta did not provide an explicit
+        // payment value. If it explicitly reports false/NO PAGADO, the new
+        // manual_pending value must be accepted and notified.
+        if (previous?.payment === 'approved' && s.payment === 'manual_pending' && provider && !providerPaymentObserved) s.payment = 'approved';
         if (previous && ['startsAt', 'doctorId', 'status', 'payment', 'form', 'patientName'].every(k => previous[k] === s[k])) continue;
         s.version = Math.max(Date.now(), (previous?.version || 0) + 1);
         // On first connection, notify upcoming appointments; don't replay old history.
