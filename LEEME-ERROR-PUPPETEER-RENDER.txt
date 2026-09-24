@@ -1,0 +1,16 @@
+ERROR CORREGIDO EN ESTA VERSION
+
+El log anterior mostraba dos problemas:
+1. Render estaba ejecutando "yarn" aunque el proyecto tiene package-lock.json.
+2. Puppeteer encontraba una descarga incompleta de chrome-headless-shell en /opt/render/.cache/puppeteer.
+
+CONFIGURACION EN RENDER:
+Build Command: bash render-build.sh
+Start Command: npm start
+
+Después usa:
+Manual Deploy -> Clear build cache & deploy
+
+No agregues PUPPETEER_SKIP_DOWNLOAD=true: este bot necesita un navegador Chrome/Chromium para whatsapp-web.js.
+
+Node queda fijado en 22.22.0.

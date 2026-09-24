@@ -3,12 +3,12 @@ services:
     name: vip-notificaciones
     runtime: node
     plan: free
-    buildCommand: npm ci
+    buildCommand: bash render-build.sh
     startCommand: npm start
     healthCheckPath: /health
     envVars:
       - key: NODE_VERSION
-        value: 22.17.0
+        value: 22.22.0
       - key: HOST
         value: 0.0.0.0
       - key: DATA_DIR
