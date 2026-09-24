@@ -1,6 +1,10 @@
-# V4 PRUEBA BAILEYS EN RENDER FREE
+# V5 — SESIÓN WHATSAPP PERSISTENTE EN MONGODB
 
-Esta variante reemplaza `whatsapp-web.js` + Puppeteer/Chromium por `@whiskeysockets/baileys`. No requiere navegador y está pensada para probar primero si el bot permanece dentro de los 512 MB de Render Free. La sesión se guarda **solo localmente** en `.data/baileys-auth` durante esta prueba; la persistencia remota se implementará después de validar el funcionamiento.
+Esta variante usa **Baileys + MongoDB Atlas**. Si `MONGODB_URI` está configurada, credenciales y claves de WhatsApp se guardan fuera del filesystem de Render, de modo que un reinicio/redeploy normal puede recuperar la sesión sin volver a escanear QR. Consulta `V5-MONGODB-RENDER.md`.
+
+# VIP NOTIFICACIONES — BAILEYS + MONGODB EN RENDER FREE
+
+Esta versión usa `@whiskeysockets/baileys` sin Puppeteer/Chromium y persiste la autenticación de WhatsApp en MongoDB Atlas cuando `MONGODB_URI` está configurada. Así, la sesión de WhatsApp no depende de `.data/baileys-auth` para sobrevivir reinicios o redeploys de Render.
 
 Consulta `BAILEYS-PRUEBA-RENDER.md` para el despliegue.
 
@@ -116,23 +120,22 @@ npm start
 
 - `GET /health`: modo, conexión a WhatsApp y salud de la fuente.
 - `GET /status`: requiere `Authorization: Bearer API_TOKEN`; informa citas, médicos faltantes y estados de cola.
-- `Ctrl+C`: cierre del servidor y del navegador conservando la sesión.
+- `Ctrl+C`: cierre limpio del servidor y de Baileys; si MongoDB está configurado, espera a que termine la última escritura de credenciales antes de cerrar.
 - Reprogramar, cancelar o cambiar de médico invalida recordatorios pendientes.
 - Por cita, hora y médico se entrega un recordatorio. Cambios posteriores de pago/formulario se avisan al grupo; no disparan un segundo recordatorio al mismo médico.
 - Fallos de envío: hasta 8 intentos, con espera creciente, luego estado `failed`. Revisar `/status`; no hay reintento infinito ni panel de recuperación automática.
 - Un envío confirmado por la biblioteca se marca `sent`; no significa que el destinatario lo leyó.
 - La cola evita duplicados habituales, pero WhatsApp Web no ofrece una clave de idempotencia: una caída justo después de enviar y antes de guardar puede duplicar un mensaje al reiniciar.
 - La base del bot cifra los cuerpos y destinatarios con `DATA_KEY`. Conserva la clave junto a copias de seguridad protegidas. Las referencias de orden y metadatos operativos de SQLite no están cifrados.
-- La sesión de WhatsApp es guardada por `LocalAuth` en `.data/whatsapp`; **no** está protegida por `DATA_KEY`. Restringe el acceso a esa carpeta y no la publiques.
+- Con `MONGODB_URI`, la sesión de WhatsApp se guarda en la colección `baileys_auth` de MongoDB Atlas. `DATA_KEY` protege la base propia del bot, pero no cifra adicionalmente esos documentos de Baileys a nivel de aplicación; protege el acceso a Atlas y a `MONGODB_URI`.
 - Modo `mock` y modo `web` tienen bases distintas: probar no consume recordatorios reales.
 - No ejecutes dos instancias locales contra la misma sesión. `worker.lock` lo impide localmente. En Render no se persiste ese lock, porque un lock antiguo en el disco podría impedir el siguiente arranque.
-- En local, mantén el equipo encendido, conectado y sin suspensión. En Render usa un servicio que no se suspenda y un Persistent Disk. Si WhatsApp invalida la sesión por su cuenta, vuelve a vincular desde `/admin/whatsapp`.
+- En Render Free, mantén `/health` recibiendo tráfico si quieres evitar el spin-down. La sesión de WhatsApp puede sobrevivir reinicios/redeploys gracias a MongoDB; si WhatsApp invalida o cierra deliberadamente el dispositivo vinculado, habrá que volver a vincular.
 - Datos y cola se conservan; no se aplica una política automática de borrado. Define retención y respaldo antes de uso prolongado.
 
 ## WhatsApp: alcance de esta implementación
 
-Usa `whatsapp-web.js` y el grupo existente de tu cuenta, mediante QR. **Es una integración no oficial; puede dejar de funcionar o generar restricciones/bloqueos de la cuenta.** No equivale a la API oficial de Meta. Consulta la advertencia del [propio proyecto](https://wwebjs.dev/guide/).
+Usa `@whiskeysockets/baileys` para vincular la cuenta mediante el mecanismo multidispositivo de WhatsApp, sin Chrome ni Puppeteer. Es una integración no oficial: puede requerir mantenimiento si WhatsApp cambia su protocolo y una cuenta puede ser desvinculada o restringida por WhatsApp. No equivale a la API oficial de Meta.
 
-No se afirma que la API oficial carezca de grupos: Meta dispone de documentación específica y condiciones que hay que validar para cada cuenta. No se ha confirmado que pueda utilizarse con tu grupo actual. Esta entrega implementa el camino de WhatsApp Web.
+La V5 persiste únicamente el estado de autenticación necesario para reconectar; no pretende almacenar el historial completo de chats.
 
-Se fija Puppeteer 25.12.0 para evitar la dependencia vulnerable `extract-zip` de la versión fijada por whatsapp-web.js. Hay una comprobación de arranque de Chromium sin WhatsApp en la entrega; la compatibilidad con la sesión real requiere el QR y una prueba con tu cuenta.

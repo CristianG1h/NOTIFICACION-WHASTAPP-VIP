@@ -46,8 +46,10 @@ async function shutdown() {
 }
 
 try {
-  if (process.env.RENDER && !config.directory.startsWith('/var/data/')) {
-    console.warn('RENDER FREE: almacenamiento temporal. Mantén el servicio activo con /health; si Render reinicia o redeploya, WhatsApp puede pedir QR nuevamente.');
+  if (process.env.RENDER && !config.mongoUri) {
+    console.warn('RENDER FREE: la sesión de WhatsApp está en almacenamiento temporal. Configura MONGODB_URI para que sobreviva reinicios/redeploys.');
+  } else if (config.mongoUri) {
+    console.log(`Persistencia Baileys: MongoDB · sesión ${config.baileysSessionId}.`);
   }
   bridge = config.source === 'sqlite' ? vipBridge(store) : config.source === 'vip-api' ? vipApiSource(store) : null;
   try { health.sourceHealthy = bridge ? await bridge.poll() : true; }

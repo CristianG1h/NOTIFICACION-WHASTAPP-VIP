@@ -64,17 +64,10 @@ Primero comprueba una cita de prueba acordada con el equipo. No se ha enviado ni
 
 ## Si no funciona
 
-- **Apareció `WhatsApp conectado` y después `r: r` en `getChats()`:** el selector ya se corrigió para no usar esa llamada. Ejecuta de nuevo `npm run connect`; conserva tu sesión. Si aún no se cargan grupos, abre el grupo en el teléfono, espera la sincronización y repite. No necesitas borrar `.data/whatsapp`.
+- **No aparece QR:** consulta `/admin/whatsapp`. Si el estado ya dice `WhatsApp conectado`, la sesión recuperada desde MongoDB no necesita QR.
+- **MongoDB no conecta:** revisa `MONGODB_URI`, el usuario/contraseña de Atlas y que Network Access permita la conexión desde Render.
+- **Grupo no aparece:** confirma que el número vinculado pertenece al grupo y vuelve a pulsar **Cargar grupos**.
+- **Solo imprime simulaciones:** revisa que `WHATSAPP_MODE=baileys`.
+- **No llega al médico:** revisa `DOCTOR_PHONE`, la ventana configurada en `REMINDER_MINUTES`, `/status` y `/health`.
+- **Sesión cerrada desde WhatsApp:** vuelve a vincular el dispositivo. La persistencia en MongoDB protege reinicios/redeploys, pero no puede conservar una sesión que WhatsApp haya revocado o que el usuario haya cerrado deliberadamente.
 
-- **No hay QR:** revisa si aparece “WhatsApp conectado”; una sesión ya guardada no necesita otro QR.
-- **Chrome no abre:** comprueba la instalación; opcionalmente configura `CHROME_PATH` con la ruta completa de Chrome. No desactives la protección del navegador como solución genérica.
-- **Grupo no aparece:** confirma que vinculaste el número que es miembro, espera a que sincronice y repite `npm run connect`.
-- **Solo imprime simulaciones:** aún tienes `WHATSAPP_MODE=mock`. Cambia a `web` y reinicia.
-- **No detecta citas de la web publicada:** una SQLite local no es la SQLite de Render. Revisa dónde se ejecutan los dos procesos.
-- **No llega al médico:** falta asignación, un ID no coincide con `doctors`, la consulta no está en la ventana de 15 minutos o la API de MediConecta falló. Revisa `/status` y `/health`.
-- **Sesión desvinculada:** detén el bot y ejecuta de nuevo `npm run connect`. Si WhatsApp revocó la sesión, autorízala de nuevo en tu teléfono.
-- **Mensaje sobre `worker.lock`:** evita abrir dos procesos. Si el anterior terminó abruptamente, confirma que está cerrado antes de borrar `.data/worker.lock`.
-
-Para desconectar definitivamente, detén el bot y elimina el dispositivo correspondiente desde WhatsApp → Dispositivos vinculados. Conserva `.env`, `config.local.json` y `.data` en privado.
-
-Referencia técnica: [autenticación y persistencia con LocalAuth](https://wwebjs.dev/guide/creating-your-bot/authentication).

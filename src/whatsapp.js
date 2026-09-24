@@ -1,5 +1,6 @@
 import { join } from 'node:path';
 import { createRequire } from 'node:module';
+import { useMongoAuthState } from './baileys-mongo-auth.js';
 
 const require = createRequire(import.meta.url);
 const QRCode = require('qrcode-terminal/vendor/QRCode');
@@ -40,6 +41,8 @@ export async function whatsapp(config) {
     qrDataUri: null,
     lastError: null,
     socket: null,
+    authStorage: 'mock',
+    authSessionId: null,
     async send() { console.log(JSON.stringify({ event: 'simulated_delivery', mode: 'mock' })); },
     async listGroups() { return []; },
     async close() {},
@@ -48,8 +51,25 @@ export async function whatsapp(config) {
   const baileys = await import('@whiskeysockets/baileys');
   const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, Browsers } = baileys;
   const { default: qrTerminal } = await import('qrcode-terminal');
-  const authDirectory = join(config.directory, 'baileys-auth');
-  const { state, saveCreds } = await useMultiFileAuthState(authDirectory);
+
+  let auth;
+  if (config.mongoUri) {
+    console.log(`Baileys: cargando sesión persistente '${config.baileysSessionId}' desde MongoDB...`);
+    auth = await useMongoAuthState({
+      uri: config.mongoUri,
+      sessionId: config.baileysSessionId,
+      databaseName: config.mongoDatabase,
+    });
+    console.log('Baileys: MongoDB conectado; la sesión sobrevivirá reinicios/redeploys de Render.');
+  } else {
+    const authDirectory = join(config.directory, 'baileys-auth');
+    const local = await useMultiFileAuthState(authDirectory);
+    auth = { ...local, storage: 'local', close: async () => {}, clear: async () => {} };
+    console.warn('Baileys: usando sesión LOCAL. Configura MONGODB_URI para persistir la sesión fuera de Render.');
+  }
+
+  const state = auth.state;
+  const saveCreds = auth.saveCreds;
 
   const sender = {
     ready: false,
@@ -59,6 +79,10 @@ export async function whatsapp(config) {
     socket: null,
     stopped: false,
     reconnectTimer: null,
+    authStorage: auth.storage,
+    authSessionId: config.baileysSessionId,
+    connectionGeneration: 0,
+    authSavePromise: Promise.resolve(),
     async send(target, text) {
       if (!sender.ready || !sender.socket) throw new Error('WhatsApp desconectado');
       let destination = target;
@@ -78,18 +102,26 @@ export async function whatsapp(config) {
         .map(group => ({ id: group.id, name: String(group.subject || group.id) }))
         .sort((a, b) => a.name.localeCompare(b.name, 'es'));
     },
+    async authStatus() {
+      if (typeof auth.status === 'function') return auth.status();
+      return { storage: auth.storage, sessionId: config.baileysSessionId, documents: null };
+    },
     async close() {
       sender.stopped = true;
       sender.ready = false;
       sender.phase = 'stopped';
+      sender.connectionGeneration += 1;
       if (sender.reconnectTimer) clearTimeout(sender.reconnectTimer);
       try { sender.socket?.ws?.close?.(); } catch {}
       sender.socket = null;
+      await sender.authSavePromise.catch(() => {});
+      await auth.close?.();
     },
   };
 
   async function connect() {
     if (sender.stopped) return;
+    const generation = ++sender.connectionGeneration;
     sender.phase = state.creds.registered ? 'connecting' : 'waiting_qr';
     sender.lastError = null;
 
@@ -103,8 +135,18 @@ export async function whatsapp(config) {
     });
     sender.socket = socket;
 
-    socket.ev.on('creds.update', saveCreds);
+    socket.ev.on('creds.update', () => {
+      sender.authSavePromise = sender.authSavePromise
+        .catch(() => {})
+        .then(() => saveCreds())
+        .catch(error => {
+          sender.lastError = `No se pudo guardar la sesión de WhatsApp: ${error?.message || 'MongoDB'}`;
+          console.error(sender.lastError);
+        });
+    });
+
     socket.ev.on('connection.update', update => {
+      if (generation !== sender.connectionGeneration) return;
       const { connection, lastDisconnect, qr } = update;
       if (qr) {
         sender.ready = false;
@@ -120,7 +162,7 @@ export async function whatsapp(config) {
         sender.phase = 'ready';
         sender.qrDataUri = null;
         sender.lastError = null;
-        console.log('WhatsApp conectado con Baileys.');
+        console.log(`WhatsApp conectado con Baileys. Sesión=${auth.storage}${auth.storage === 'mongodb' ? ` (${config.baileysSessionId})` : ''}.`);
       }
       if (connection === 'close') {
         sender.ready = false;
@@ -135,6 +177,7 @@ export async function whatsapp(config) {
           console.error(sender.lastError);
         } else if (!sender.stopped) {
           console.warn(sender.lastError);
+          if (sender.reconnectTimer) clearTimeout(sender.reconnectTimer);
           sender.reconnectTimer = setTimeout(() => { void connect().catch(error => {
             sender.phase = 'error';
             sender.lastError = error?.message || 'No se pudo reconectar WhatsApp';

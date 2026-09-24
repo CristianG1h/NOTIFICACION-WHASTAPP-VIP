@@ -30,6 +30,12 @@ export function configuration(env = process.env) {
   if (base.protocol !== 'https:' || base.pathname !== '/' || base.search || base.hash || base.username || base.password) throw new Error('Base MediConecta inválida');
   const doctorPanel = new URL(env.DOCTOR_PANEL_URL || 'https://medico.vip-mediconecta.app/panel-medico');
   if (doctorPanel.protocol !== 'https:' || doctorPanel.username || doctorPanel.password || doctorPanel.search || doctorPanel.hash) throw new Error('DOCTOR_PANEL_URL inválida');
+  const mongoUri = String(env.MONGODB_URI || '').trim();
+  if (mongoUri && !/^mongodb(?:\+srv)?:\/\//.test(mongoUri)) throw new Error('MONGODB_URI inválida');
+  const baileysSessionId = String(env.BAILEYS_SESSION_ID || 'vip-notificaciones-principal').trim();
+  if (!/^[A-Za-z0-9_-]{1,100}$/.test(baileysSessionId)) throw new Error('BAILEYS_SESSION_ID inválido');
+  const mongoDatabase = String(env.MONGODB_DB || '').trim();
+  if (mongoDatabase && !/^[A-Za-z0-9_-]{1,100}$/.test(mongoDatabase)) throw new Error('MONGODB_DB inválida');
   return {
     mode,
     source,
@@ -42,6 +48,9 @@ export function configuration(env = process.env) {
     port: integer('PORT', 3210, 1, 65535),
     reminderMinutes: integer('REMINDER_MINUTES', 15, 1, 1440),
     pollSeconds: integer('POLL_SECONDS', 15, 5, 3600),
+    mongoUri,
+    mongoDatabase,
+    baileysSessionId,
   };
 }
 

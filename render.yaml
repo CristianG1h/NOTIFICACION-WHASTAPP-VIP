@@ -43,6 +43,12 @@ services:
         sync: false
       - key: DOCTOR_PHONE
         sync: false
+      - key: MONGODB_URI
+        sync: false
+      - key: BAILEYS_SESSION_ID
+        value: vip-notificaciones-principal
+      - key: MONGODB_DB
+        sync: false
       - key: CONTROL_GROUP_ID
         sync: false
       - key: MEDICONNECTA_TOKEN

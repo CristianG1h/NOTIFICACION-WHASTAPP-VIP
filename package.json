@@ -1,6 +1,6 @@
 {
   "name": "vip-notificaciones",
-  "version": "1.1.0-baileys-test",
+  "version": "1.2.0-baileys-mongodb",
   "private": true,
   "type": "module",
   "engines": {
@@ -18,7 +18,8 @@
   },
   "dependencies": {
     "@whiskeysockets/baileys": "7.0.0-rc14",
-    "qrcode-terminal": "0.12.0"
+    "qrcode-terminal": "0.12.0",
+    "mongodb": "7.6.0"
   },
   "packageManager": "npm@10.9.4"
 }

@@ -1,92 +1,82 @@
-# VIP NOTIFICACIONES - Render Free
+# VIP NOTIFICACIONES V5 — Render Free + Baileys + MongoDB
 
 ## 1. GitHub
 Sube todo este proyecto a un repositorio privado. No subas `.env`, `.data`, sesiones de WhatsApp ni bases SQLite.
 
-## 2. Crear Web Service en Render
+## 2. Render
 - Runtime: Node
 - Plan: Free
-- Build Command: `npm ci`
+- Build Command: `bash render-build.sh`
 - Start Command: `npm start`
 - Health Check Path: `/health`
+- Node: `22.22.0`
 
-También puedes crear el servicio usando `render.yaml`.
+## 3. Variables obligatorias
 
-## 3. Variables de entorno obligatorias
+```text
+API_TOKEN=<64 caracteres hexadecimales>
+DATA_KEY=<64 caracteres hexadecimales>
+WHATSAPP_MODE=baileys
+SOURCE_MODE=vip-api
+VIP_API_BASE_URL=https://vip-teleconsulta-api.onrender.com
+VIP_API_TOKEN=<NOTIFICATIONS_READ_TOKEN del backend>
+DOCTOR_PHONE=<57 + celular, solo números>
+DOCTOR_ID=medico_principal
+DOCTOR_FORCE_DEFAULT=true
+MONGODB_URI=<cadena completa de MongoDB Atlas>
+BAILEYS_SESSION_ID=vip-notificaciones-principal
+```
 
-### API_TOKEN
-Clave privada de 64 caracteres hexadecimales. Protege `/admin/whatsapp`, `/status` y endpoints administrativos.
+Si tu `MONGODB_URI` ya incluye `/vip_notificaciones`, `MONGODB_DB` puede quedar vacío.
 
-### DATA_KEY
-Clave privada de 64 caracteres hexadecimales. Cifra los datos guardados localmente por el bot.
+## 4. Grupo de control
 
-### VIP_API_TOKEN
-Debe coincidir EXACTAMENTE con `NOTIFICATIONS_READ_TOKEN` del backend VIP Teleconsulta.
+Si ya tienes el ID, configura:
 
-### DOCTOR_PHONE
-Número de WhatsApp del médico en formato internacional, solo números.
-Ejemplo Colombia: `573001234567`.
+```text
+CONTROL_GROUP_ID=120363XXXXXXXX@g.us
+```
 
-## 4. Variables recomendadas
+Si no lo tienes, abre `/admin/whatsapp`, ingresa `API_TOKEN`, vincula WhatsApp, pulsa **Cargar grupos**, selecciona el grupo y guarda. Luego copia el ID mostrado a `CONTROL_GROUP_ID` en Render.
 
-### DOCTOR_ID
-Puedes dejar: `medico_principal`
+## 5. Primera vinculación en V5
 
-### DOCTOR_FORCE_DEFAULT
-Déjalo en `true` si este bot debe enviar todas las alertas médicas al número definido en `DOCTOR_PHONE`.
-
-### CONTROL_GROUP_ID
-La primera vez puede quedar vacío. Después de vincular WhatsApp:
-1. Abre `https://TU-SERVICIO.onrender.com/admin/whatsapp`
-2. Ingresa `API_TOKEN`.
-3. Escanea el QR.
-4. Pulsa `Cargar grupos`.
-5. Selecciona el grupo de control.
-6. Pulsa `Guardar grupo`.
-7. Copia el ID que termina en `@g.us`.
-8. En Render > Environment crea/actualiza `CONTROL_GROUP_ID` con ese ID.
-
-Esto evita depender del archivo temporal de Render para recordar qué grupo usar.
-
-## 5. Mantener Render Free activo
-Configura tu monitor externo para solicitar periódicamente:
-
-`https://TU-SERVICIO.onrender.com/health`
-
-No necesita `API_TOKEN`.
-
-## 6. Conectar WhatsApp sin terminal
-Usa:
+MongoDB estará vacío la primera vez. Abre:
 
 `https://TU-SERVICIO.onrender.com/admin/whatsapp`
 
-El panel muestra el QR directamente en el navegador, por lo que no necesitas Shell/Terminal de Render.
+Escanea el QR una vez. Cuando la pantalla indique `WhatsApp conectado · sesión mongodb`, la autenticación ya se está guardando fuera de Render.
 
-## 7. Importante sobre Render Free
-Mantener `/health` recibiendo peticiones evita la inactividad mientras las peticiones sigan llegando, pero el almacenamiento local de un servicio Free sigue siendo temporal. Si Render reinicia o haces un redeploy, la sesión de WhatsApp puede requerir vinculación otra vez. El grupo no se pierde si guardaste su ID en `CONTROL_GROUP_ID`.
+## 6. Comprobar persistencia
 
-## Corrección de build Puppeteer (V2)
+Abre:
 
-Si Render muestra `Failed to set up chrome-headless-shell` o intenta ejecutar `yarn`, entra en **Settings** del Web Service y usa exactamente:
+`https://TU-SERVICIO.onrender.com/health`
 
-- Build Command: `bash render-build.sh`
-- Start Command: `npm start`
-- Node: `22.22.0` (el proyecto también incluye `.node-version`)
+Debe incluir:
 
-Luego ve a **Manual Deploy > Clear build cache & deploy**. No uses solamente `Deploy latest commit` para corregir este error, porque el cache incompleto de Puppeteer puede conservarse.
-
-El proyecto incluye `.puppeteerrc.cjs` para que Chrome de Puppeteer quede en `.cache/puppeteer` dentro del build y no dependa del cache global defectuoso que aparece en el error.
-
-
-## Render Free: error `Ran out of memory (used over 512MB)`
-
-La V3 activa un perfil de memoria reducida para Chromium y Node. En **Environment** agrega o verifica también:
-
-```text
-NODE_OPTIONS=--max-old-space-size=128
-MALLOC_ARENA_MAX=2
+```json
+{
+  "whatsappReady": true,
+  "whatsappAuthStorage": "mongodb",
+  "whatsappSessionId": "vip-notificaciones-principal"
+}
 ```
 
-Después ejecuta **Manual Deploy > Clear build cache & deploy**.
+Después haz un redeploy normal. Si vuelve a `whatsappReady: true` sin QR, la persistencia quedó confirmada.
 
-El plan Free tiene un límite total de 512 MB para el servicio. `whatsapp-web.js` necesita Chromium, por lo que este ajuste reduce el consumo pero no puede garantizar que todas las versiones futuras de WhatsApp Web/Chromium quepan siempre dentro de 512 MB.
+## 7. Mantener Render Free activo
+
+Tu monitor externo puede consultar periódicamente:
+
+`https://TU-SERVICIO.onrender.com/health`
+
+Ese endpoint no necesita `API_TOKEN`.
+
+## 8. Memoria
+
+V5 no usa `whatsapp-web.js`, Puppeteer ni Chromium. No necesitas `CHROME_PATH`, `PUPPETEER_SKIP_DOWNLOAD`, `NODE_OPTIONS` ni `MALLOC_ARENA_MAX` para este proyecto.
+
+## 9. Importante
+
+MongoDB conserva la **sesión de WhatsApp**. Otros archivos locales de Render Free siguen siendo temporales. Si WhatsApp cierra o revoca deliberadamente el dispositivo vinculado, habrá que vincularlo nuevamente aunque MongoDB conserve los documentos antiguos.

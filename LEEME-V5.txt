@@ -1,0 +1,20 @@
+VIP NOTIFICACIONES V5
+=====================
+
+CAMBIO PRINCIPAL:
+- Baileys sigue siendo el cliente de WhatsApp.
+- Ya no depende de .data/baileys-auth cuando MONGODB_URI está configurada.
+- Credenciales y claves de la sesión se guardan en MongoDB Atlas.
+- Render Free puede reiniciar/redeployar y Baileys recuperará la sesión desde MongoDB.
+
+VARIABLES NUEVAS:
+MONGODB_URI
+BAILEYS_SESSION_ID=vip-notificaciones-principal
+MONGODB_DB (opcional)
+
+VERIFICACION:
+GET /health debe indicar whatsappAuthStorage=mongodb.
+/admin/whatsapp muestra también el almacenamiento de sesión.
+
+IMPORTANTE:
+Nunca subas MONGODB_URI real a GitHub.
