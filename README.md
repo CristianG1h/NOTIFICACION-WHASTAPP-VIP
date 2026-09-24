@@ -1,3 +1,11 @@
+# V4 PRUEBA BAILEYS EN RENDER FREE
+
+Esta variante reemplaza `whatsapp-web.js` + Puppeteer/Chromium por `@whiskeysockets/baileys`. No requiere navegador y está pensada para probar primero si el bot permanece dentro de los 512 MB de Render Free. La sesión se guarda **solo localmente** en `.data/baileys-auth` durante esta prueba; la persistencia remota se implementará después de validar el funcionamiento.
+
+Consulta `BAILEYS-PRUEBA-RENDER.md` para el despliegue.
+
+---
+
 # IMPORTANTE - VERSION FINAL RENDER FREE
 
 Para desplegar esta versión lee primero `RENDER-FREE-PASO-A-PASO.md` y `VARIABLES-RENDER.txt`.

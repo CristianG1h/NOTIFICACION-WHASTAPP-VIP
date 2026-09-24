@@ -1,23 +1,23 @@
+PRUEBA V4 - BAILEYS (SIN CHROME / SIN PUPPETEER)
+================================================
+
 OBLIGATORIAS
-===========
+============
 API_TOKEN=<64 caracteres hexadecimales>
 DATA_KEY=<64 caracteres hexadecimales>
 VIP_API_TOKEN=<mismo valor que NOTIFICATIONS_READ_TOKEN del backend VIP Teleconsulta>
 DOCTOR_PHONE=<numero internacional solo digitos, ejemplo 573001234567>
 
-RECOMENDADAS
-============
-DOCTOR_ID=medico_principal
-DOCTOR_FORCE_DEFAULT=true
-CONTROL_GROUP_ID=<ID del grupo terminado en @g.us; se obtiene despues de conectar WhatsApp>
-
-YA PUEDEN QUEDAR CON ESTOS VALORES
-==================================
+VALORES FIJOS
+=============
+NODE_VERSION=22.22.0
 HOST=0.0.0.0
 DATA_DIR=.data
-WHATSAPP_MODE=web
+WHATSAPP_MODE=baileys
 SOURCE_MODE=vip-api
 VIP_API_BASE_URL=https://vip-teleconsulta-api.onrender.com
+DOCTOR_ID=medico_principal
+DOCTOR_FORCE_DEFAULT=true
 DOCTOR_PANEL_URL=https://medico.vip-mediconecta.app/panel-medico
 MEDICONNECTA_BASE_URL=https://vip-mediconecta.app
 MEDICONNECTA_LOOKUP=false
@@ -25,8 +25,17 @@ MEDICONNECTA_AUTH_MODE=bearer
 REMINDER_MINUTES=15
 POLL_SECONDS=15
 
-OPCIONALES / AVANZADAS
-======================
-MEDICONNECTA_TOKEN=
-ROUTING_JSON=
-CHROME_PATH=
+PRIMERA PRUEBA
+==============
+CONTROL_GROUP_ID=
+
+Cuando WhatsApp conecte, entra a /admin/whatsapp, carga los grupos, selecciona el grupo y guarda.
+Para esta primera prueba la sesion queda solo en .data/baileys-auth del Render actual.
+Todavia NO se ha implementado almacenamiento remoto de la sesion, por decision expresa de probar Baileys primero.
+
+YA NO SE NECESITAN
+==================
+CHROME_PATH
+PUPPETEER_SKIP_DOWNLOAD
+NODE_OPTIONS=--max-old-space-size=128
+MALLOC_ARENA_MAX=2

@@ -76,3 +76,17 @@ Si Render muestra `Failed to set up chrome-headless-shell` o intenta ejecutar `y
 Luego ve a **Manual Deploy > Clear build cache & deploy**. No uses solamente `Deploy latest commit` para corregir este error, porque el cache incompleto de Puppeteer puede conservarse.
 
 El proyecto incluye `.puppeteerrc.cjs` para que Chrome de Puppeteer quede en `.cache/puppeteer` dentro del build y no dependa del cache global defectuoso que aparece en el error.
+
+
+## Render Free: error `Ran out of memory (used over 512MB)`
+
+La V3 activa un perfil de memoria reducida para Chromium y Node. En **Environment** agrega o verifica también:
+
+```text
+NODE_OPTIONS=--max-old-space-size=128
+MALLOC_ARENA_MAX=2
+```
+
+Después ejecuta **Manual Deploy > Clear build cache & deploy**.
+
+El plan Free tiene un límite total de 512 MB para el servicio. `whatsapp-web.js` necesita Chromium, por lo que este ajuste reduce el consumo pero no puede garantizar que todas las versiones futuras de WhatsApp Web/Chromium quepan siempre dentro de 512 MB.

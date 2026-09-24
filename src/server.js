@@ -3,7 +3,6 @@ import { timingSafeEqual } from 'node:crypto';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { InputError } from './domain.js';
-import { listGroups } from './groups.js';
 
 export function authorized(value, token) {
   const actual = Buffer.from(String(value || ''));
@@ -62,17 +61,17 @@ export function server(store, sender, health = {}) {
       if (!authorized(req.headers.authorization, store.config.token)) return json(401, { error: 'No autorizado' });
       if (req.method === 'GET' && req.url === '/admin/whatsapp/state') return json(200, { ready: !!sender.ready, phase: sender.phase || (sender.ready ? 'ready' : 'starting'), qrDataUri: sender.qrDataUri || null, lastError: sender.lastError || null, controlGroupId: store.routes.controlGroupId || '' });
       if (req.method === 'GET' && req.url === '/admin/whatsapp/groups') {
-        if (!sender.ready || !sender.client) return json(409, { error: 'WhatsApp aún no está conectado' });
-        const groups = await listGroups(sender.client);
-        return json(200, { groups: groups.map(g => ({ name: g.name, id: g.id._serialized })) });
+        if (!sender.ready) return json(409, { error: 'WhatsApp aún no está conectado' });
+        const groups = await sender.listGroups();
+        return json(200, { groups });
       }
       if (req.method === 'POST' && req.url === '/admin/whatsapp/control-group') {
         if (!String(req.headers['content-type']).startsWith('application/json')) return json(415, { error: 'Usa application/json' });
         const input = await bodyJson(req);
         if (typeof input.id !== 'string' || !/^\d+(?:-\d+)?@g\.us$/.test(input.id)) throw new InputError('ID de grupo inválido');
-        if (sender.ready && sender.client) {
-          const groups = await listGroups(sender.client);
-          if (!groups.some(g => g.id._serialized === input.id)) throw new InputError('Ese grupo no pertenece al WhatsApp conectado', 409);
+        if (sender.ready) {
+          const groups = await sender.listGroups();
+          if (!groups.some(g => g.id === input.id)) throw new InputError('Ese grupo no pertenece al WhatsApp conectado', 409);
         }
         store.routes.controlGroupId = input.id;
         writeFileSync(join(store.config.directory, 'routing.runtime.json'), JSON.stringify({ controlGroupId: input.id }, null, 2) + '\n', { mode: 0o600 });

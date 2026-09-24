@@ -1,0 +1,17 @@
+VIP NOTIFICACIONES V4 - PRUEBA BAILEYS
+
+OBJETIVO DE ESTA VERSION:
+- Probar Baileys en Render Free.
+- No usar Chrome, Chromium, Puppeteer ni whatsapp-web.js.
+- Mantener /health y /admin/whatsapp.
+- Mantener DOCTOR_PHONE configurable desde Render.
+- Mantener seleccion de grupo desde el navegador.
+- NO implementar todavia almacenamiento remoto de la sesion.
+
+PRIMER DEPLOY:
+1. Sube esta V4 completa a GitHub.
+2. Render Build Command: bash render-build.sh
+3. Render Start Command: npm start
+4. WHATSAPP_MODE=baileys
+5. Manual Deploy -> Clear build cache & deploy
+6. Abre /admin/whatsapp y escanea el QR.

@@ -1,28 +1,23 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { listGroups, readGroupSummaries } from '../src/groups.js';
+import { normalizeBaileysGroups, listGroups } from '../src/groups.js';
 import { providerFields, mediconecta } from '../src/mediconecta.js';
 
-test('group picker supports old/new WIDs without chat serialization or participant lookup', () => {
-  globalThis.window = { require(name) {
-    assert.equal(name, 'WAWebCollections');
-    return { Chat: { getModelsArray() { return [
-      { id: { _serialized: '123@g.us' }, formattedTitle: 'Control', serialize() { throw new Error('r: r'); } },
-      { id: { $1: '456@g.us' }, name: 'Otro' },
-      { id: { _serialized: '111@c.us' }, name: 'Personal' },
-      { get id() { throw new Error('Malformed'); } },
-    ]; } } };
-  } };
-  try { assert.deepEqual(readGroupSummaries().map(g => g.id._serialized), ['123@g.us', '456@g.us']); }
-  finally { delete globalThis.window; }
+test('Baileys group picker normalizes participating groups', () => {
+  const groups = normalizeBaileysGroups({
+    a: { id: '123@g.us', subject: 'Control' },
+    b: { id: '456-789@g.us', subject: 'Otro' },
+    c: { id: '111@s.whatsapp.net', subject: 'Personal' },
+  });
+  assert.deepEqual(groups.map(g => g.id).sort(), ['123@g.us', '456-789@g.us']);
 });
-test('group picker retries synchronization and gives a useful failure instead of r:r', async () => {
-  let attempts = 0;
-  const client = { pupPage: { async evaluate() { if (++attempts < 3) throw new Error('r: r'); return [{ id: { _serialized: '123@g.us' } }]; } } };
-  assert.equal((await listGroups(client, async () => {})).length, 1);
-  assert.equal(attempts, 3);
-  await assert.rejects(listGroups({ pupPage: { async evaluate() { return []; } } }, async () => {}), /No borres la sesión/);
+
+test('Baileys group picker uses groupFetchAllParticipating', async () => {
+  const socket = { async groupFetchAllParticipating() { return { a: { id: '123@g.us', subject: 'Control' } }; } };
+  assert.deepEqual(await listGroups(socket), [{ id: '123@g.us', name: 'Control' }]);
+  await assert.rejects(listGroups({ async groupFetchAllParticipating() { return {}; } }), /no se encontraron grupos/i);
 });
+
 test('provider aliases map exact names to local doctors; unknown alias never uses a default', () => {
   const mapping = { doctorIdPath: 'medico', requireDoctorAlias: true, doctorAliases: { 'MÉDICO EJEMPLO': 'doctor1' } };
   assert.equal(providerFields({ medico: 'MÉDICO EJEMPLO' }, mapping).doctorId, 'doctor1');

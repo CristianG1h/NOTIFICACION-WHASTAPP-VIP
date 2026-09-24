@@ -14,7 +14,7 @@ services:
       - key: DATA_DIR
         value: .data
       - key: WHATSAPP_MODE
-        value: web
+        value: baileys
       - key: SOURCE_MODE
         value: vip-api
       - key: VIP_API_BASE_URL

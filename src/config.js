@@ -25,7 +25,7 @@ export function configuration(env = process.env) {
   if (!/^[a-f\d]{64}$/i.test(env.API_TOKEN || '')) throw new Error('Falta API_TOKEN: debe tener 64 caracteres hexadecimales');
   const mode = env.WHATSAPP_MODE || 'mock';
   const source = env.SOURCE_MODE || 'webhook';
-  if (!['mock', 'web'].includes(mode) || !['webhook', 'sqlite', 'vip-api'].includes(source)) throw new Error('Modo inválido');
+  if (!['mock', 'web', 'baileys'].includes(mode) || !['webhook', 'sqlite', 'vip-api'].includes(source)) throw new Error('Modo inválido');
   const base = new URL(env.MEDICONNECTA_BASE_URL || 'https://vip-mediconecta.app');
   if (base.protocol !== 'https:' || base.pathname !== '/' || base.search || base.hash || base.username || base.password) throw new Error('Base MediConecta inválida');
   const doctorPanel = new URL(env.DOCTOR_PANEL_URL || 'https://medico.vip-mediconecta.app/panel-medico');
