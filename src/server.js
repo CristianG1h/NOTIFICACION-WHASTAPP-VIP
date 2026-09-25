@@ -24,7 +24,7 @@ body{font-family:system-ui,-apple-system,Segoe UI,sans-serif;background:#f4f7f6;
 </div><script>
 let token=''; const state=document.getElementById('state'), qr=document.getElementById('qr');
 async function api(path, options={}){const r=await fetch(path,{...options,headers:{...(options.headers||{}),Authorization:'Bearer '+token}});const data=await r.json().catch(()=>({}));if(!r.ok)throw new Error(data.error||('HTTP '+r.status));return data}
-async function refresh(){if(!token)return;try{const x=await api('/admin/whatsapp/state');state.className=x.ready?'ok':(x.lastError?'bad':'muted');state.textContent=x.ready?'WhatsApp conectado · sesión '+(x.authStorage||'desconocida')+'.':('Estado: '+x.phase+(x.lastError?' · '+x.lastError:''));if(x.qrDataUri){qr.src=x.qrDataUri;qr.style.display='block'}else{qr.style.display='none'}}catch(e){state.className='bad';state.textContent=e.message}}
+async function refresh(){if(!token)return;try{const x=await api('/admin/whatsapp/state');state.className=x.ready?'ok':(x.lastError?'bad':'muted');state.textContent=x.ready?'WhatsApp conectado · sesión '+(x.authStorage||'desconocida')+'.':('Estado: '+x.phase+(x.startupPhase?' · inicio '+x.startupPhase:'')+(x.lastError?' · '+x.lastError:''));if(x.qrDataUri){qr.src=x.qrDataUri;qr.style.display='block'}else{qr.style.display='none'}}catch(e){state.className='bad';state.textContent=e.message}}
 document.getElementById('connect').onclick=()=>{token=document.getElementById('token').value.trim();refresh()};
 document.getElementById('loadGroups').onclick=async()=>{try{const x=await api('/admin/whatsapp/groups');const s=document.getElementById('groups');s.innerHTML='<option value="">Selecciona un grupo</option>';for(const g of x.groups){const o=document.createElement('option');o.value=g.id;o.textContent=g.name+' — '+g.id;s.appendChild(o)}}catch(e){document.getElementById('groupMsg').textContent=e.message}};
 document.getElementById('saveGroup').onclick=async()=>{try{const id=document.getElementById('groups').value;if(!id)throw new Error('Selecciona un grupo');const x=await api('/admin/whatsapp/control-group',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id})});document.getElementById('groupMsg').textContent='Guardado temporalmente: '+x.controlGroupId+' · Copia este ID a CONTROL_GROUP_ID en Render para conservarlo.'}catch(e){document.getElementById('groupMsg').textContent=e.message}};
@@ -55,28 +55,32 @@ export function server(store, sender, health = {}) {
       res.end(body);
     };
     try {
-      // Monitores externos pueden usar GET o HEAD. Estas rutas siempre deben
-      // responder sin API_TOKEN para evitar falsos 401 y mantener Render activo.
-      const publicMethod = req.method === 'GET' || req.method === 'HEAD';
       const pathname = new URL(req.url || '/', 'http://localhost').pathname;
+      const publicMethod = req.method === 'GET' || req.method === 'HEAD';
 
+      // Rutas públicas para Render y para el monitor externo.
+      // Aceptan GET y HEAD y nunca requieren API_TOKEN.
       if (publicMethod && pathname === '/') {
         return json(200, {
           service: 'vip-notificaciones',
           status: 'ok',
+          startupPhase: health.startupPhase || 'unknown',
           health: '/health',
           ping: '/ping',
           whatsappAdmin: '/admin/whatsapp'
         });
       }
-
       if (publicMethod && pathname === '/ping') {
-        return json(200, { ok: true, service: 'vip-notificaciones' });
+        return json(200, {
+          ok: true,
+          service: 'vip-notificaciones',
+          startupPhase: health.startupPhase || 'unknown'
+        });
       }
-
       if (publicMethod && pathname === '/health') {
         return json(200, {
           service: 'vip-notificaciones',
+          startupPhase: health.startupPhase || 'unknown',
           mode: store.config.mode,
           source: store.config.source,
           whatsappReady: sender.ready,
@@ -92,16 +96,36 @@ export function server(store, sender, health = {}) {
         res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', 'X-Frame-Options': 'DENY', 'Referrer-Policy': 'no-referrer' });
         return res.end(adminPage());
       }
+
       if (!authorized(req.headers.authorization, store.config.token)) return json(401, { error: 'No autorizado' });
+
       if (req.method === 'GET' && pathname === '/admin/whatsapp/state') {
         const auth = typeof sender.authStatus === 'function' ? await sender.authStatus().catch(() => null) : null;
-        return json(200, { ready: !!sender.ready, phase: sender.phase || (sender.ready ? 'ready' : 'starting'), qrDataUri: sender.qrDataUri || null, lastError: sender.lastError || null, controlGroupId: store.routes.controlGroupId || '', authStorage: sender.authStorage || 'unknown', authSessionId: sender.authSessionId || null, authDocuments: auth?.documents ?? null });
+        return json(200, {
+          ready: !!sender.ready,
+          phase: sender.phase || (sender.ready ? 'ready' : 'starting'),
+          startupPhase: health.startupPhase || 'unknown',
+          qrDataUri: sender.qrDataUri || null,
+          lastError: sender.lastError || null,
+          controlGroupId: store.routes.controlGroupId || '',
+          authStorage: sender.authStorage || 'unknown',
+          authSessionId: sender.authSessionId || null,
+          authDocuments: auth?.documents ?? null
+        });
       }
+
       if (req.method === 'GET' && pathname === '/admin/whatsapp/groups') {
         if (!sender.ready) return json(409, { error: 'WhatsApp aún no está conectado' });
         const groups = await sender.listGroups();
         return json(200, { groups });
       }
+
+      // Mientras el nuevo deploy espera el lease de MongoDB, solo se permiten
+      // consultas de lectura. Así evitamos escribir estado antes de restaurarlo.
+      if (health.startupPhase !== 'ready' && req.method !== 'GET' && req.method !== 'HEAD') {
+        return json(503, { error: 'Servicio iniciando. Intenta nuevamente en unos segundos.' });
+      }
+
       if (req.method === 'POST' && pathname === '/admin/whatsapp/control-group') {
         if (!String(req.headers['content-type']).startsWith('application/json')) return json(415, { error: 'Usa application/json' });
         const input = await bodyJson(req);
@@ -116,6 +140,7 @@ export function server(store, sender, health = {}) {
         await store.persist?.();
         return json(200, { saved: true, controlGroupId: input.id });
       }
+
       if (req.method === 'GET' && pathname === '/status') return json(200, store.status());
       const local = ['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(req.socket.remoteAddress);
       if (req.method === 'GET' && pathname === '/local/upcoming' && local) return json(200, store.upcoming());

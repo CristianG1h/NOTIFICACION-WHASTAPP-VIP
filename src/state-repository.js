@@ -7,11 +7,9 @@ const tables = {
   reminders: ['id'], metadata: ['key', 'value'],
   offers: ['code', 'appointment', 'startsAt', 'payload'], inbound: ['id', 'received'],
 };
-
 export function exportState(store) {
   return Object.fromEntries(Object.keys(tables).map(table => [table, store.db.prepare(`SELECT * FROM ${table}`).all()]));
 }
-
 export function importState(store, state) {
   if (Object.keys(tables).some(table => !Array.isArray(state[table]))) throw new Error('Copia de estado incompleta');
   store.db.exec('BEGIN IMMEDIATE');
@@ -24,6 +22,7 @@ export function importState(store, state) {
     store.db.exec('COMMIT');
   } catch (error) { store.db.exec('ROLLBACK'); throw error; }
 }
+const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
 // Checkpoints are chunked; publishing the manifest is atomic. An interrupted write
 // leaves the previous complete snapshot available. DATA_KEY protects all payloads.
@@ -34,20 +33,73 @@ export async function stateRepository(config, store, clientOverride) {
   await client.connect();
   const collection = (config.mongoDatabase ? client.db(config.mongoDatabase) : client.db()).collection('vip_notification_state');
   const scope = `${config.baileysSessionId}:${config.mode}`, owner = randomUUID();
+  const leaseId = `${scope}:lease`;
   let lost = false, digest, timer, chain = Promise.resolve();
+
   async function renew() {
     const now = Date.now();
     try {
-      const r = await collection.updateOne({ _id: `${scope}:lease`, $or: [{ owner }, { expires: { $lt: now } }] },
-        { $set: { scope, owner, expires: now + 90000 } }, { upsert: true });
-      if (!r.matchedCount && !r.upsertedCount) throw new Error();
-    } catch { lost = true; throw new Error('Otro bot está activo o no se pudo renovar el bloqueo MongoDB. No se enviarán avisos.'); }
+      const r = await collection.updateOne(
+        { _id: leaseId, $or: [{ owner }, { expires: { $lt: now } }] },
+        { $set: { scope, owner, expires: now + 90000 } },
+        { upsert: true }
+      );
+      if (!r.matchedCount && !r.upsertedCount) throw new Error('lease ocupado');
+    } catch {
+      lost = true;
+      throw new Error('Otro bot está activo o no se pudo renovar el bloqueo MongoDB. No se enviarán avisos.');
+    }
   }
-  try { await renew(); }
-  catch (error) { await client.close(); throw error; }
+
+  async function acquire() {
+    const waitMs = Math.max(10000, Number(process.env.MONGODB_LEASE_WAIT_MS || 180000));
+    const deadline = Date.now() + waitMs;
+    let lastNotice = 0;
+
+    while (true) {
+      const now = Date.now();
+      try {
+        const r = await collection.updateOne(
+          { _id: leaseId, $or: [{ owner }, { expires: { $lt: now } }] },
+          { $set: { scope, owner, expires: now + 90000 } },
+          { upsert: true }
+        );
+        if (r.matchedCount || r.upsertedCount) {
+          console.log('[MongoDB] Bloqueo adquirido. Este despliegue queda como bot activo.');
+          return;
+        }
+      } catch (error) {
+        // Cuando el _id ya existe y pertenece al deploy anterior, MongoDB devuelve
+        // normalmente E11000 por el upsert. Eso es esperado durante un deploy
+        // zero-downtime de Render: el proceso anterior sigue activo unos segundos.
+        if (error?.code !== 11000) {
+          await client.close().catch(() => {});
+          throw new Error(`No se pudo adquirir el bloqueo MongoDB: ${error?.message || 'error desconocido'}`);
+        }
+      }
+
+      if (Date.now() >= deadline) {
+        await client.close().catch(() => {});
+        throw new Error('El bloqueo MongoDB siguió ocupado demasiado tiempo. Verifica que no exista otro servicio usando el mismo BAILEYS_SESSION_ID.');
+      }
+
+      if (Date.now() - lastNotice > 15000) {
+        lastNotice = Date.now();
+        console.log('[MongoDB] El deploy anterior todavía tiene el bloqueo. Esperando liberación sin iniciar un segundo bot...');
+      }
+      await sleep(3000);
+    }
+  }
+
+  await acquire();
+  lost = false;
   timer = setInterval(() => { void renew().catch(error => console.error(error.message)); }, 20000);
   timer.unref();
-  const assertActive = () => { if (lost) throw new Error('Persistencia/bloqueo no disponible. Reinicia cuando MongoDB esté disponible.'); };
+
+  const assertActive = () => {
+    if (lost) throw new Error('Persistencia/bloqueo no disponible. Reinicia cuando MongoDB esté disponible.');
+  };
+
   return {
     assertActive,
     async restore() {
@@ -81,7 +133,7 @@ export async function stateRepository(config, store, clientOverride) {
     async close() {
       clearInterval(timer);
       await chain.catch(() => {});
-      try { await collection.deleteOne({ _id: `${scope}:lease`, owner }); }
+      try { await collection.deleteOne({ _id: leaseId, owner }); }
       finally { await client.close(); }
     },
   };
