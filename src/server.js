@@ -9,7 +9,6 @@ export function authorized(value, token) {
   const expected = Buffer.from(`Bearer ${token}`);
   return actual.length === expected.length && timingSafeEqual(actual, expected);
 }
-
 function adminPage() {
   return `<!doctype html>
 <html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
@@ -32,7 +31,6 @@ document.getElementById('saveGroup').onclick=async()=>{try{const id=document.get
 setInterval(refresh,3000);
 </script></body></html>`;
 }
-
 async function bodyJson(req, limit = 16384) {
   let size = 0;
   const chunks = [];
@@ -44,31 +42,67 @@ async function bodyJson(req, limit = 16384) {
   try { return JSON.parse(Buffer.concat(chunks).toString() || '{}'); }
   catch { throw new InputError('JSON inválido'); }
 }
-
 export function server(store, sender, health = {}) {
   const app = createServer(async (req, res) => {
     const json = (status, data) => {
-      res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
-      res.end(JSON.stringify(data));
+      const body = JSON.stringify(data);
+      res.writeHead(status, {
+        'Content-Type': 'application/json; charset=utf-8',
+        'Cache-Control': 'no-store',
+        'Content-Length': Buffer.byteLength(body)
+      });
+      if (req.method === 'HEAD') return res.end();
+      res.end(body);
     };
     try {
-      if (req.method === 'GET' && req.url === '/') return json(200, { service: 'vip-notificaciones', health: '/health', whatsappAdmin: '/admin/whatsapp' });
-      if (req.method === 'GET' && req.url === '/health') return json(200, { service: 'vip-notificaciones', mode: store.config.mode, source: store.config.source, whatsappReady: sender.ready, whatsappPhase: sender.phase || (sender.ready ? 'ready' : 'starting'), whatsappAuthStorage: sender.authStorage || 'unknown', whatsappSessionId: sender.authSessionId || null, sourceHealthy: health.sourceHealthy ?? true, awaitingEvents: store.config.source === 'webhook' && store.status().appointments === 0 });
-      if (req.method === 'GET' && req.url === '/admin/whatsapp') {
+      // Monitores externos pueden usar GET o HEAD. Estas rutas siempre deben
+      // responder sin API_TOKEN para evitar falsos 401 y mantener Render activo.
+      const publicMethod = req.method === 'GET' || req.method === 'HEAD';
+      const pathname = new URL(req.url || '/', 'http://localhost').pathname;
+
+      if (publicMethod && pathname === '/') {
+        return json(200, {
+          service: 'vip-notificaciones',
+          status: 'ok',
+          health: '/health',
+          ping: '/ping',
+          whatsappAdmin: '/admin/whatsapp'
+        });
+      }
+
+      if (publicMethod && pathname === '/ping') {
+        return json(200, { ok: true, service: 'vip-notificaciones' });
+      }
+
+      if (publicMethod && pathname === '/health') {
+        return json(200, {
+          service: 'vip-notificaciones',
+          mode: store.config.mode,
+          source: store.config.source,
+          whatsappReady: sender.ready,
+          whatsappPhase: sender.phase || (sender.ready ? 'ready' : 'starting'),
+          whatsappAuthStorage: sender.authStorage || 'unknown',
+          whatsappSessionId: sender.authSessionId || null,
+          sourceHealthy: health.sourceHealthy ?? true,
+          awaitingEvents: store.config.source === 'webhook' && store.status().appointments === 0
+        });
+      }
+
+      if (req.method === 'GET' && pathname === '/admin/whatsapp') {
         res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', 'X-Frame-Options': 'DENY', 'Referrer-Policy': 'no-referrer' });
         return res.end(adminPage());
       }
       if (!authorized(req.headers.authorization, store.config.token)) return json(401, { error: 'No autorizado' });
-      if (req.method === 'GET' && req.url === '/admin/whatsapp/state') {
+      if (req.method === 'GET' && pathname === '/admin/whatsapp/state') {
         const auth = typeof sender.authStatus === 'function' ? await sender.authStatus().catch(() => null) : null;
         return json(200, { ready: !!sender.ready, phase: sender.phase || (sender.ready ? 'ready' : 'starting'), qrDataUri: sender.qrDataUri || null, lastError: sender.lastError || null, controlGroupId: store.routes.controlGroupId || '', authStorage: sender.authStorage || 'unknown', authSessionId: sender.authSessionId || null, authDocuments: auth?.documents ?? null });
       }
-      if (req.method === 'GET' && req.url === '/admin/whatsapp/groups') {
+      if (req.method === 'GET' && pathname === '/admin/whatsapp/groups') {
         if (!sender.ready) return json(409, { error: 'WhatsApp aún no está conectado' });
         const groups = await sender.listGroups();
         return json(200, { groups });
       }
-      if (req.method === 'POST' && req.url === '/admin/whatsapp/control-group') {
+      if (req.method === 'POST' && pathname === '/admin/whatsapp/control-group') {
         if (!String(req.headers['content-type']).startsWith('application/json')) return json(415, { error: 'Usa application/json' });
         const input = await bodyJson(req);
         if (typeof input.id !== 'string' || !/^\d+(?:-\d+)?@g\.us$/.test(input.id)) throw new InputError('ID de grupo inválido');
@@ -82,11 +116,11 @@ export function server(store, sender, health = {}) {
         await store.persist?.();
         return json(200, { saved: true, controlGroupId: input.id });
       }
-      if (req.method === 'GET' && req.url === '/status') return json(200, store.status());
+      if (req.method === 'GET' && pathname === '/status') return json(200, store.status());
       const local = ['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(req.socket.remoteAddress);
-      if (req.method === 'GET' && req.url === '/local/upcoming' && local) return json(200, store.upcoming());
-      const testDoctor = req.url === '/local/test-doctor' && local;
-      if (req.method !== 'POST' || (!testDoctor && req.url !== '/events/appointment')) return json(404, { error: 'Ruta inexistente' });
+      if (req.method === 'GET' && pathname === '/local/upcoming' && local) return json(200, store.upcoming());
+      const testDoctor = pathname === '/local/test-doctor' && local;
+      if (req.method !== 'POST' || (!testDoctor && pathname !== '/events/appointment')) return json(404, { error: 'Ruta inexistente' });
       if (!testDoctor && store.config.source !== 'webhook') return json(409, { error: 'Eventos externos desactivados para evitar mezclar fuentes' });
       if (!String(req.headers['content-type']).startsWith('application/json')) return json(415, { error: 'Usa application/json' });
       const input = await bodyJson(req);
