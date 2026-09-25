@@ -48,7 +48,9 @@ export function mediconecta(config, routes, env = process.env, fetcher = fetch) 
       if (!response.ok) throw new Error('No se pudo consultar la orden en MediConecta');
       const body = await response.json();
       if (body.success !== true || body.data?._id !== id) throw new Error('Respuesta de orden no válida');
-      const result = providerFields(body.data, routes.mediconecta);
+      // WhatsApp-managed rosters broadcast to saved phones, independently of a
+      // provider's physician names/keys. Payment and form validation still apply.
+      const result = providerFields(body.data, routes.broadcastDoctors ? { ...routes.mediconecta, doctorIdPath: '' } : routes.mediconecta);
       if (routes.mediconecta.formLookup === 'bsl-wix-id') {
         // This route can fall back to patient document searches on the provider.
         // Only accept an exact order link; never assume another form belongs here.

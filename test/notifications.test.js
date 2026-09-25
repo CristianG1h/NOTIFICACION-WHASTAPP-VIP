@@ -26,14 +26,14 @@ test('new appointment -> group; verified payment/form -> latest doctor reminder'
   store.accept(s); store.accept({ ...s, version: 2, payment: 'approved', form: 'completed' }); store.schedule();
   const sent = [];
   await store.deliver({ async send(target, text) { sent.push({ target, text }); } });
-  assert.equal(sent.length, 3);
+  assert.equal(sent.length, 2);
   assert.equal(sent[0].target, '123@g.us');
   assert.match(sent[0].text, /Nueva cita/);
   assert.doesNotMatch(sent[0].text, /https:/);
-  assert.equal(sent[2].target, '573001111111');
-  assert.match(sent[2].text, /Pago: Pagado/);
-  assert.match(sent[2].text, /Formulario: Completado/);
-  assert.match(sent[2].text, /https:\/\/medico\.vip-mediconecta\.app\/panel-medico/);
+  assert.equal(sent[1].target, '573001111111');
+  assert.match(sent[1].text, /Pago: Pagado/);
+  assert.match(sent[1].text, /Formulario: Completado/);
+  assert.match(sent[1].text, /https:\/\/medico\.vip-mediconecta\.app\/panel-medico/);
 });
 test('duplicates, out of order delivery, and version collisions', t => {
   const { store, s } = fixture(t);
@@ -50,7 +50,7 @@ test('reschedule/cancel removes queued reminders and does not deliver past appoi
   store.accept({ ...s, version: 2, status: 'cancelled' }); store.schedule();
   const sent = [];
   await store.deliver({ async send(target) { sent.push(target); } });
-  assert.deepEqual(sent, ['123@g.us', '123@g.us']);
+  assert.deepEqual(sent, ['123@g.us']);
   store.accept({ ...s, version: 3, startsAt: new Date(Date.now() - 1000).toISOString() }); store.schedule();
   assert.equal(store.db.prepare("SELECT COUNT(*) AS n FROM jobs WHERE kind='reminder' AND state='pending'").get().n, 0);
 });

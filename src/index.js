@@ -6,6 +6,9 @@ import { server } from './server.js';
 import { vipApiSource } from './vip-api.js';
 import { openSync, closeSync, unlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { Doctors, doctorRepository } from './doctors.js';
+import { Conversation } from './conversation.js';
+import { stateRepository } from './state-repository.js';
 
 const config = configuration();
 const routes = routing('config.local.json', process.env);
@@ -28,7 +31,7 @@ if (useLock) {
   }
 }
 
-let bridge, sender, app, timer, running = false, stopping = false;
+let bridge, sender, app, timer, directoryRepository, persistence, persistenceRestored = false, running = false, stopping = false;
 const health = { sourceHealthy: true };
 async function shutdown() {
   if (stopping) return;
@@ -38,6 +41,9 @@ async function shutdown() {
   while (running) await new Promise(resolve => setTimeout(resolve, 50));
   await sender?.close().catch(() => {});
   bridge?.close();
+  if (persistenceRestored) await persistence?.save().catch(() => {});
+  await persistence?.close();
+  await directoryRepository?.close();
   store.close();
   if (descriptor !== undefined) {
     closeSync(descriptor);
@@ -46,6 +52,16 @@ async function shutdown() {
 }
 
 try {
+  persistence = await stateRepository(config, store);
+  await persistence?.restore();
+  persistenceRestored = true;
+  const savedGroup = store.db.prepare("SELECT value FROM metadata WHERE key='control_group'").get();
+  if (!process.env.CONTROL_GROUP_ID && savedGroup) routes.controlGroupId = savedGroup.value;
+  store.persist = () => persistence?.save();
+  directoryRepository = await doctorRepository(config, store);
+  const doctors = new Doctors(store, directoryRepository);
+  await doctors.initialize();
+  const conversation = new Conversation(store, doctors);
   if (process.env.RENDER && !config.mongoUri) {
     console.warn('RENDER FREE: la sesión de WhatsApp está en almacenamiento temporal. Configura MONGODB_URI para que sobreviva reinicios/redeploys.');
   } else if (config.mongoUri) {
@@ -54,22 +70,32 @@ try {
   bridge = config.source === 'sqlite' ? vipBridge(store) : config.source === 'vip-api' ? vipApiSource(store) : null;
   try { health.sourceHealthy = bridge ? await bridge.poll() : true; }
   catch (error) { health.sourceHealthy = false; console.error(error.message); }
-  sender = await whatsapp(config);
+  sender = await whatsapp(config, async incoming => {
+    persistence?.assertActive();
+    await conversation.receive(incoming);
+    await persistence?.save();
+    // Menus and confirmations should not wait for the next source poll. Medical
+    // reminders remain restricted to the worker that just refreshed the source.
+    if (sender?.ready) await store.deliver({ send: async (...args) => { persistence?.assertActive(); return sender.send(...args); } }, Date.now(), { sourceHealthy: false });
+  });
   app = server(store, sender, health);
   await new Promise((resolve, reject) => { app.once('error', reject); app.listen(config.port, config.host, resolve); });
   console.log(`VIP NOTIFICACIONES: http://${config.host}:${config.port} | WhatsApp=${config.mode} | fuente=${config.source}`);
   if (process.env.RENDER) console.log('Administración WhatsApp: abre /admin/whatsapp en la URL pública de Render.');
   if (!routes.controlGroupId) console.log('Falta elegir el grupo. En Render usa /admin/whatsapp y luego guarda el ID en CONTROL_GROUP_ID para conservarlo entre reinicios.');
-  if (!routes.defaultDoctorId) console.warn('Falta DOCTOR_PHONE: los recordatorios al médico no se podrán enviar.');
+  if (!Object.keys(routes.doctors).length) console.warn('Sin médicos: un administrador debe escribir MEDICO al WhatsApp del bot.');
   if (config.source === 'webhook' && store.status().appointments === 0) console.warn('ATENCIÓN: 0 citas recibidas. Configura la fuente VIP.');
   if (process.env.MEDICONNECTA_LOOKUP !== 'true') console.warn('Consulta del médico en MediConecta desactivada: falta configurar acceso autorizado.');
   const tick = async () => {
     if (running || stopping) return;
     running = true;
     try {
-      health.sourceHealthy = bridge ? await bridge.poll() : true;
-      store.schedule();
-      if (sender.ready) await store.deliver(sender);
+      try { health.sourceHealthy = bridge ? await bridge.poll() : true; }
+      catch (error) { health.sourceHealthy = false; console.error(error.message || 'No se pudo actualizar la fuente.'); }
+      if (health.sourceHealthy) store.schedule();
+      await persistence?.save();
+      if (sender.ready) await store.deliver({ send: async (...args) => { persistence?.assertActive(); return sender.send(...args); } }, Date.now(), { sourceHealthy: health.sourceHealthy });
+      await persistence?.save();
     } catch (error) {
       health.sourceHealthy = false;
       console.error(error.message || 'No se pudo procesar la fuente/cola.');

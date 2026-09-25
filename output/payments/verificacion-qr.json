@@ -1,0 +1,12 @@
+{
+  "medios-de-pago-vip-movil.png": {
+    "qr_decoded": true,
+    "identical_to_source": true,
+    "sha256": "96f27a7a925a9299f2f37a126126203849929e3623bc3fe65655de5a95a1e995"
+  },
+  "medios-de-pago-vip.png": {
+    "qr_decoded": true,
+    "identical_to_source": true,
+    "sha256": "96f27a7a925a9299f2f37a126126203849929e3623bc3fe65655de5a95a1e995"
+  }
+}

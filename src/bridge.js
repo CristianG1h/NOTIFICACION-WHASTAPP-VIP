@@ -41,7 +41,7 @@ export function vipBridge(store, env = process.env, providerOverride) {
         const s = fromVipRow(row, key, store.routes);
         if (!s) continue;
         const previous = store.get(s.id);
-        if (provider && s.status !== 'completed' && Date.parse(s.startsAt) > Date.now()) {
+        if (provider && s.status !== 'completed' && Date.parse(s.startsAt) > Date.now() - 120000) {
           try { Object.assign(s, await provider.lookup(s.id)); }
           catch {
             providerHealthy = false;

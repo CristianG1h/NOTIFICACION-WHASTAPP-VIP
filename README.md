@@ -1,3 +1,13 @@
+# V8 — MÉDICOS POR WHATSAPP Y AVISOS SELECTIVOS
+
+**Guía actual:** [MEJORAS-V8.md](MEJORAS-V8.md). Los documentos V4–V7 se conservan como referencia histórica.
+
+Los administradores **573102210461** y **573212340504** pueden escribir **MEDICO** al bot para agregar, modificar y eliminar médicos por nombre y celular. Al guardar el directorio desde WhatsApp se notifica a todos los médicos guardados, sin pedir identificadores externos. La primera confirmación de una cita gana y se informa a los demás.
+
+El grupo recibe ingresos y cambios de fecha/hora. Los médicos reciben recordatorios antes y al inicio de la consulta, con pago/formulario actualizados. MongoDB conserva también los médicos, confirmaciones y avisos enviados.
+
+El diseño de pagos está en `public/payments/index.html`; las imágenes verificadas están en `output/payments/`. Es un componente independiente: este repositorio no contiene la web original de la captura.
+
 # V5 — SESIÓN WHATSAPP PERSISTENTE EN MONGODB
 
 Esta variante usa **Baileys + MongoDB Atlas**. Si `MONGODB_URI` está configurada, credenciales y claves de WhatsApp se guardan fuera del filesystem de Render, de modo que un reinicio/redeploy normal puede recuperar la sesión sin volver a escanear QR. Consulta `V5-MONGODB-RENDER.md`.
@@ -34,15 +44,15 @@ Web VIP → backend VIP → SQLite cifrado (lectura, sin modificar el backend)
                      VIP NOTIFICACIONES
                               ├─ Consulta la orden conocida en MediConecta
                               │    → identificador del médico / estado del formulario
-                              ├─ Grupo: nueva cita y cambios de estado/pago/formulario
-                              └─ Médico: aviso 15 minutos antes
+                              ├─ Grupo: nueva cita y cambios de fecha/hora
+                              └─ Médicos: aviso 15 minutos antes y al inicio
                                    → hora Colombia, formulario, pago, enlace al panel médico
 ```
 
 - Detecta cambios cada 15 segundos, configurables.
 - El pago electrónico proviene del backend VIP, que verifica los eventos de Wompi. Si MediConecta marca manualmente la orden con `pagado=true`, el bot la promueve a **Pagado** sin degradar un pago Wompi ya aprobado.
 - El formulario aparece como **Sin verificar** hasta disponer de una respuesta confirmada de MediConecta. Guardar el formulario de reserva de la web no demuestra que se haya completado el formulario médico.
-- El identificador de médico de MediConecta se relaciona con su WhatsApp en `config.local.json`. No se extraen ni adivinan teléfonos.
+- El directorio se administra escribiendo MEDICO desde un número autorizado. Las configuraciones antiguas se conservan hasta guardar por primera vez desde el menú.
 - Se consulta solamente la orden asociada a una cita originada en VIP. No se enumeran pacientes ni todas las órdenes de MediConecta.
 - El recordatorio del médico usa el panel dedicado configurado en `DOCTOR_PANEL_URL` (por defecto `https://medico.vip-mediconecta.app/panel-medico`).
 - Sin médico configurado se informa al grupo; no se envía a un destinatario arbitrario.
@@ -138,4 +148,3 @@ npm start
 Usa `@whiskeysockets/baileys` para vincular la cuenta mediante el mecanismo multidispositivo de WhatsApp, sin Chrome ni Puppeteer. Es una integración no oficial: puede requerir mantenimiento si WhatsApp cambia su protocolo y una cuenta puede ser desvinculada o restringida por WhatsApp. No equivale a la API oficial de Meta.
 
 La V5 persiste únicamente el estado de autenticación necesario para reconectar; no pretende almacenar el historial completo de chats.
-

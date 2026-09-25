@@ -1,6 +1,7 @@
 import { join } from 'node:path';
 import { createRequire } from 'node:module';
 import { useMongoAuthState } from './baileys-mongo-auth.js';
+import { incomingMessage } from './conversation.js';
 
 const require = createRequire(import.meta.url);
 const QRCode = require('qrcode-terminal/vendor/QRCode');
@@ -34,7 +35,7 @@ function disconnectCode(error) {
   );
 }
 
-export async function whatsapp(config) {
+export async function whatsapp(config, onMessage = async () => {}) {
   if (config.mode === 'mock') return {
     ready: true,
     phase: 'mock',
@@ -70,6 +71,7 @@ export async function whatsapp(config) {
 
   const state = auth.state;
   const saveCreds = auth.saveCreds;
+  let incomingQueue = Promise.resolve();
 
   const sender = {
     ready: false,
@@ -115,6 +117,7 @@ export async function whatsapp(config) {
       try { sender.socket?.ws?.close?.(); } catch {}
       sender.socket = null;
       await sender.authSavePromise.catch(() => {});
+      await incomingQueue.catch(() => {});
       await auth.close?.();
     },
   };
@@ -134,6 +137,16 @@ export async function whatsapp(config) {
       getMessage: async () => undefined,
     });
     sender.socket = socket;
+
+    socket.ev.on('messages.upsert', event => {
+      if (event.type !== 'notify' || generation !== sender.connectionGeneration || sender.stopped) return;
+      for (const item of event.messages || []) {
+        incomingQueue = incomingQueue.then(async () => {
+          const incoming = await incomingMessage(item, socket);
+          if (incoming) await onMessage(incoming);
+        }).catch(() => console.error('No se pudo procesar un mensaje entrante.'));
+      }
+    });
 
     socket.ev.on('creds.update', () => {
       sender.authSavePromise = sender.authSavePromise

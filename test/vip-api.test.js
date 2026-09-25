@@ -28,7 +28,7 @@ test('API -> local queue -> control group; repeat polls do not duplicate and pay
   assert.equal(sent.length, 1); assert.equal(sent[0].target, '123@g.us'); assert.match(sent[0].text, /Nueva cita/);
   current = { ...s, version: 2, payment: 'approved' }; await source.poll();
   await store.deliver({ async send(target, text) { sent.push({ target, text }); } });
-  assert.equal(sent.length, 2); assert.match(sent[1].text, /Pago: Pagado/);
+  assert.equal(sent.length, 1); assert.equal(store.get(s.id).payment, 'approved');
 });
 test('provider enriches remote VIP orders and unknown provider blocks doctor reminders', async t => {
   const { store, env, s } = fixture(t);
@@ -75,7 +75,7 @@ test('an approved payment is not downgraded to manual_pending on a later provide
 });
 
 
-test('explicit MediConecta unpaid state downgrades approved and produces an update', async t => {
+test('explicit MediConecta unpaid state updates storage without notifying group', async t => {
   const { store, env, s } = fixture(t);
   let paid = true;
   const fetcher = async () => ({
@@ -94,7 +94,8 @@ test('explicit MediConecta unpaid state downgrades approved and produces an upda
   await source.poll();
   assert.equal(store.get(s.id).payment, 'manual_pending');
   const job = store.db.prepare("SELECT payload FROM jobs WHERE appointment=? AND kind='updated' AND state='pending' ORDER BY id DESC LIMIT 1").get(s.id);
-  assert.ok(job, 'debe crear una actualización cuando vuelve a No pagado');
-  const payload = store.unseal(job.payload);
-  assert.match(payload.text, /Pago: Pendiente de verificación manual/);
+  assert.equal(job, undefined, 'El pago no debe producir avisos al grupo');
+  store.schedule();
+  const reminder = store.db.prepare("SELECT payload FROM jobs WHERE kind='reminder'").get();
+  assert.match(store.unseal(reminder.payload).text, /Pago: Pendiente de verificación manual/);
 });

@@ -43,8 +43,6 @@ services:
         sync: false
       - key: VIP_API_TOKEN
         sync: false
-      - key: DOCTOR_PHONE
-        sync: false
       - key: MONGODB_URI
         sync: false
       - key: BAILEYS_SESSION_ID

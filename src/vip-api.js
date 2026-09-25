@@ -33,7 +33,7 @@ export function vipApiSource(store, env = process.env, fetcher = fetch, provider
       for (const s of records) {
         const previous = store.get(s.id);
         let providerPaymentObserved = false;
-        if (provider && s.status !== 'completed' && Date.parse(s.startsAt) > Date.now()) {
+        if (provider && s.status !== 'completed' && Date.parse(s.startsAt) > Date.now() - 120000) {
           try {
             const providerState = await provider.lookup(s.id);
             providerPaymentObserved = Object.hasOwn(providerState, 'payment');

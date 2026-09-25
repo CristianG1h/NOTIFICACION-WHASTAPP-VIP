@@ -26,12 +26,17 @@ export function snapshot(input) {
   return out;
 }
 export function selectedDoctor(s, routes) {
+  if (s.doctorId === 'PROVIDER_UNAVAILABLE') return null;
   if (routes.forceDefaultDoctor && routes.defaultDoctorId && Object.hasOwn(routes.doctors, routes.defaultDoctorId)) {
     return routes.doctors[routes.defaultDoctorId];
   }
-  if (s.doctorId === 'PROVIDER_UNAVAILABLE') return null;
   const id = s.doctorId || routes.assignments[s.id] || routes.defaultDoctorId;
   return id && Object.hasOwn(routes.doctors, id) ? routes.doctors[id] : null;
+}
+export function selectedDoctors(s, routes) {
+  if (s.doctorId === 'PROVIDER_UNAVAILABLE') return [];
+  const phones = routes.broadcastDoctors ? Object.values(routes.doctors) : [selectedDoctor(s, routes)].filter(Boolean);
+  return [...new Set(phones)];
 }
 const labels = {
   confirmed: 'Confirmada', rescheduling: 'Reprogramando', uncertain: 'Por verificar', completed: 'Completado', cancelled: 'Cancelada',
@@ -41,9 +46,9 @@ const labels = {
 };
 export function message(s, kind, doctorPanel) {
   const when = new Intl.DateTimeFormat('es-CO', { timeZone: 'America/Bogota', dateStyle: 'medium', timeStyle: 'short' }).format(new Date(s.startsAt));
-  const reminder = ['reminder', 'test_reminder'].includes(kind);
-  const title = reminder ? '👨‍⚕️ Próxima consulta' : kind === 'created' ? '📋 Nueva cita' : '📋 Actualización de cita';
-  const lines = ['*VIP NOTIFICACIONES*', ...(kind === 'test_reminder' ? ['🧪 PRUEBA LOCAL — aviso adelantado'] : []), title, `Paciente: ${s.patientName || 'Nombre no disponible'}`, `Fecha y hora: ${when} (Colombia)`, `Estado: ${labels[s.status]}`, `Formulario: ${labels[s.form]}`, `Pago: ${labels[s.payment]}`];
-  if (reminder) lines.push(`Panel médico: ${doctorPanel}`);
+  const reminder = ['reminder', 'test_reminder', 'exact'].includes(kind);
+  const title = kind === 'exact' ? '⏰ ¡Es hora de la teleconsulta!' : reminder ? '👨‍⚕️ Próxima consulta' : kind === 'created' ? '📋 Nueva cita' : '🗓️ Cambio de fecha u hora';
+  const lines = ['*VIP NOTIFICACIONES* 💙', ...(kind === 'test_reminder' ? ['🧪 PRUEBA LOCAL — aviso adelantado'] : []), '', `*${title}*`, `👤 Paciente: ${s.patientName || 'Nombre no disponible'}`, `🗓️ Fecha y hora: ${when} (Colombia)`];
+  if (reminder) lines.push(`📌 Estado: ${labels[s.status]}`, `${s.form === 'completed' ? '✅' : '📝'} Formulario: ${labels[s.form]}`, `${s.payment === 'approved' ? '✅' : '💳'} Pago: ${labels[s.payment]}`, `🔗 Panel médico: ${doctorPanel}`, '', '¡Gracias por cuidar de nuestros pacientes! 💙');
   return lines.join('\n');
 }

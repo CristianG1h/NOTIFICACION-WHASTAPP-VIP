@@ -1,0 +1,8 @@
+{
+  "source": "CamScanner 14-07-26 13.22.pdf",
+  "payloadBytes": 528,
+  "sha256": "96f27a7a925a9299f2f37a126126203849929e3623bc3fe65655de5a95a1e995",
+  "quietZoneModules": 4,
+  "modules": 89,
+  "errorCorrection": "M"
+}

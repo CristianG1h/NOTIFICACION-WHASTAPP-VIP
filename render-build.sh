@@ -6,6 +6,6 @@ echo "[render-build] Eliminando dependencias antiguas cacheadas..."
 rm -rf node_modules
 
 echo "[render-build] Instalando dependencias Node..."
-npm install --omit=dev --no-audit --no-fund
+npm ci --omit=dev --no-audit --no-fund
 
 echo "[render-build] Build terminado."

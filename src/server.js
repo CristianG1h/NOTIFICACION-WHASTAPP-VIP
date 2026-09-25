@@ -77,7 +77,9 @@ export function server(store, sender, health = {}) {
           if (!groups.some(g => g.id === input.id)) throw new InputError('Ese grupo no pertenece al WhatsApp conectado', 409);
         }
         store.routes.controlGroupId = input.id;
+        store.db.prepare("INSERT INTO metadata VALUES('control_group',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").run(input.id);
         writeFileSync(join(store.config.directory, 'routing.runtime.json'), JSON.stringify({ controlGroupId: input.id }, null, 2) + '\n', { mode: 0o600 });
+        await store.persist?.();
         return json(200, { saved: true, controlGroupId: input.id });
       }
       if (req.method === 'GET' && req.url === '/status') return json(200, store.status());

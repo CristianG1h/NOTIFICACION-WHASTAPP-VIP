@@ -32,5 +32,5 @@ test('single-doctor Render mode sends any appointment to DOCTOR_PHONE', () => {
     forceDefaultDoctor: true,
   };
   assert.equal(selectedDoctor({ doctorId: 'otro_medico', id: 'cita-1' }, routes), '573001234567');
-  assert.equal(selectedDoctor({ doctorId: 'PROVIDER_UNAVAILABLE', id: 'cita-2' }, routes), '573001234567');
+  assert.equal(selectedDoctor({ doctorId: 'PROVIDER_UNAVAILABLE', id: 'cita-2' }, routes), null);
 });
