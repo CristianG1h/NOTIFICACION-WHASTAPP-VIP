@@ -32,7 +32,12 @@ if (useLock) {
 }
 
 let bridge, sender, app, timer, directoryRepository, persistence, persistenceRestored = false, running = false, stopping = false;
-const health = { sourceHealthy: true, startupPhase: 'booting' };
+const health = {
+  sourceHealthy: true,
+  providerHealthy: true,
+  startupPhase: 'booting',
+  persistenceStatus: () => persistence?.leaseStatus() || { healthy: !config.mongoUri, error: null },
+};
 
 // Render hace deploy zero-downtime: el proceso anterior sigue vivo mientras arranca
 // el nuevo. Este proxy permite levantar HTTP/health primero, pero NO inicia un segundo
@@ -106,7 +111,7 @@ try {
 
   health.startupPhase = 'loading-source';
   bridge = config.source === 'sqlite' ? vipBridge(store) : config.source === 'vip-api' ? vipApiSource(store) : null;
-  try { health.sourceHealthy = bridge ? await bridge.poll() : true; }
+  try { health.sourceHealthy = bridge ? await bridge.poll() : true; health.providerHealthy = bridge?.providerHealthy ?? true; }
   catch (error) { health.sourceHealthy = false; console.error(error.message); }
 
   health.startupPhase = 'connecting-whatsapp';
@@ -131,7 +136,7 @@ try {
     if (running || stopping) return;
     running = true;
     try {
-      try { health.sourceHealthy = bridge ? await bridge.poll() : true; }
+      try { health.sourceHealthy = bridge ? await bridge.poll() : true; health.providerHealthy = bridge?.providerHealthy ?? true; }
       catch (error) { health.sourceHealthy = false; console.error(error.message || 'No se pudo actualizar la fuente.'); }
       if (health.sourceHealthy) store.schedule();
       await persistence?.save();
