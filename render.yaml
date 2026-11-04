@@ -53,5 +53,9 @@ services:
         sync: false
       - key: MEDICONNECTA_TOKEN
         sync: false
+      - key: MEDICONNECTA_LOGIN_EMAIL
+        sync: false
+      - key: MEDICONNECTA_LOGIN_PASSWORD
+        sync: false
       - key: ROUTING_JSON
         sync: false
