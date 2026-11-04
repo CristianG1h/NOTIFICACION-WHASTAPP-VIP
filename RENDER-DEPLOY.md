@@ -101,6 +101,34 @@ MEDICONNECTA_AUTH_MODE=bearer
 MEDICONNECTA_TOKEN=<token autorizado>
 ```
 
+### Autenticación automática (con autorización del dueño de MediConecta)
+
+El backend BSL-PLATAFORMA publica un inicio de sesión JWT con vigencia de 24 horas.
+Para evitar que el bot deje de recibir cambios al vencerse el token, existe el
+modo `login`: obtiene un token mediante la API, lo conserva solo en memoria,
+lo renueva antes de vencer y reintenta una sola vez después de un HTTP 401.
+
+En **Render > Environment**, agrega las tres variables **a la vez**:
+
+```dotenv
+MEDICONNECTA_AUTH_MODE=login
+MEDICONNECTA_LOGIN_EMAIL=<correo de una cuenta técnica autorizada>
+MEDICONNECTA_LOGIN_PASSWORD=<contraseña nueva, solo en Render>
+```
+
+El modo no se activa por defecto para que un despliegue sin credenciales no
+interrumpa WhatsApp. Requiere una cuenta aprobada en MediConecta con permisos
+de lectura sobre las órdenes de VIP. **No reutilices la contraseña que se haya
+compartido en capturas o chats**: debe reemplazarse primero. Lo ideal es una
+cuenta técnica de solo lectura administrada por el propietario. No subas estas
+variables a GitHub ni uses el `API_TOKEN` o `VIP_API_TOKEN` del bot.
+
+El bot no almacena el JWT en MongoDB, no registra contraseñas y nunca consulta
+órdenes fuera de los ID recibidos desde VIP. Si el backend real usa un contrato
+distinto del código público, verifica con el propietario el acceso de esa cuenta.
+Después de **Save and deploy**, revisa `/health`: `providerHealthy: true`
+confirma que las consultas activas ya no tienen errores de proveedor.
+
 Con `MEDICONNECTA_LOOKUP=false` el bot no puede ver `pagado=true` de MediConecta y el backend VIP puede seguir mostrando `manual_pending`.
 
 ## 4. Vincular WhatsApp sin terminal de Render
