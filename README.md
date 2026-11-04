@@ -73,6 +73,15 @@ npm run demo
 
 Después sigue [CONECTAR-WHATSAPP.md](CONECTAR-WHATSAPP.md) y [CONEXION-MEDICONECTA.md](CONEXION-MEDICONECTA.md).
 
+### JWT de MediConecta en Render
+
+Cuando la API de MediConecta exige autenticación, `MEDICONNECTA_AUTH_MODE=login`
+permite que el bot inicie sesión con una cuenta técnica autorizada y renueve su
+token de 24 horas automáticamente, sin guardarlo en disco. Configura
+`MEDICONNECTA_LOGIN_EMAIL` y `MEDICONNECTA_LOGIN_PASSWORD` solamente en Render.
+Consulta [RENDER-DEPLOY.md](RENDER-DEPLOY.md) antes de activarlo: una cuenta
+sin permisos o un contrato de API diferente pueden seguir provocando HTTP 401.
+
 ## Fuente de citas: SQLite del backend VIP
 
 En `.env` configura:
