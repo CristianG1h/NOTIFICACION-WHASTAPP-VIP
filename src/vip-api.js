@@ -9,6 +9,7 @@ export function vipApiSource(store, env = process.env, fetcher = fetch, provider
   const provider = providerOverride === undefined ? mediconecta(store.config, store.routes, env, fetcher) : providerOverride;
   let first = !store.db.prepare("SELECT value FROM metadata WHERE key='vip_api_baseline'").get();
   return {
+    providerHealthy: true,
     async poll() {
       const records = []; const cursors = new Set(); let cursor = '';
       // Validate the entire paginated response before changing local state.
@@ -29,7 +30,7 @@ export function vipApiSource(store, env = process.env, fetcher = fetch, provider
         if (cursor && (cursors.has(cursor) || cursors.size >= 100)) throw new Error('Paginación VIP incompleta; no se aplicó la sincronización');
         if (cursor) cursors.add(cursor);
       } while (cursor);
-      let healthy = true;
+      let providerHealthy = true;
       for (const s of records) {
         const previous = store.get(s.id);
         let providerPaymentObserved = false;
@@ -42,7 +43,7 @@ export function vipApiSource(store, env = process.env, fetcher = fetch, provider
             // If MediConecta is temporarily unavailable, keep a previously
             // confirmed payment rather than inventing an unpaid state. A real
             // explicit pagado=false response is handled above and DOES downgrade.
-            healthy = false;
+            providerHealthy = false;
             s.doctorId = 'PROVIDER_UNAVAILABLE';
             s.form = 'unknown';
             console.error(`MediConecta ${s.id}: ${error.message || 'consulta fallida'}`);
@@ -59,7 +60,10 @@ export function vipApiSource(store, env = process.env, fetcher = fetch, provider
       }
       first = false;
       store.db.prepare("INSERT OR IGNORE INTO metadata VALUES('vip_api_baseline','done')").run();
-      return healthy;
+      this.providerHealthy = providerHealthy;
+      // Solo se bloquea el médico de la orden que falló. Una orden inválida
+      // de MediConecta no debe suspender avisos de otras citas verificadas.
+      return true;
     },
     close() {},
   };

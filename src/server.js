@@ -24,7 +24,7 @@ body{font-family:system-ui,-apple-system,Segoe UI,sans-serif;background:#f4f7f6;
 </div><script>
 let token=''; const state=document.getElementById('state'), qr=document.getElementById('qr');
 async function api(path, options={}){const r=await fetch(path,{...options,headers:{...(options.headers||{}),Authorization:'Bearer '+token}});const data=await r.json().catch(()=>({}));if(!r.ok)throw new Error(data.error||('HTTP '+r.status));return data}
-async function refresh(){if(!token)return;try{const x=await api('/admin/whatsapp/state');state.className=x.ready?'ok':(x.lastError?'bad':'muted');state.textContent=x.ready?'WhatsApp conectado · sesión '+(x.authStorage||'desconocida')+'.':('Estado: '+x.phase+(x.startupPhase?' · inicio '+x.startupPhase:'')+(x.lastError?' · '+x.lastError:''));if(x.qrDataUri){qr.src=x.qrDataUri;qr.style.display='block'}else{qr.style.display='none'}}catch(e){state.className='bad';state.textContent=e.message}}
+async function refresh(){if(!token)return;try{const x=await api('/admin/whatsapp/state');const blocked=x.persistenceHealthy===false;state.className=blocked?'bad':(x.ready?'ok':(x.lastError?'bad':'muted'));state.textContent=(x.ready?'WhatsApp conectado · sesión '+(x.authStorage||'desconocida')+'.':'Estado: '+x.phase+(x.startupPhase?' · inicio '+x.startupPhase:'')+(x.lastError?' · '+x.lastError:''))+(blocked?' ⚠️ Envíos pausados: MongoDB/bloqueo no disponible.':'')+(x.sourceHealthy===false?' ⚠️ Fuente de citas sin conexión; recordatorios pausados.':'')+(x.providerHealthy===false?' ⚠️ Algunas órdenes de MediConecta fallaron; solo sus recordatorios quedan bloqueados.':'');if(x.qrDataUri){qr.src=x.qrDataUri;qr.style.display='block'}else{qr.style.display='none'}}catch(e){state.className='bad';state.textContent=e.message}}
 document.getElementById('connect').onclick=()=>{token=document.getElementById('token').value.trim();refresh()};
 document.getElementById('loadGroups').onclick=async()=>{try{const x=await api('/admin/whatsapp/groups');const s=document.getElementById('groups');s.innerHTML='<option value="">Selecciona un grupo</option>';for(const g of x.groups){const o=document.createElement('option');o.value=g.id;o.textContent=g.name+' — '+g.id;s.appendChild(o)}}catch(e){document.getElementById('groupMsg').textContent=e.message}};
 document.getElementById('saveGroup').onclick=async()=>{try{const id=document.getElementById('groups').value;if(!id)throw new Error('Selecciona un grupo');const x=await api('/admin/whatsapp/control-group',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id})});document.getElementById('groupMsg').textContent='Guardado temporalmente: '+x.controlGroupId+' · Copia este ID a CONTROL_GROUP_ID en Render para conservarlo.'}catch(e){document.getElementById('groupMsg').textContent=e.message}};
@@ -78,6 +78,7 @@ export function server(store, sender, health = {}) {
         });
       }
       if (publicMethod && pathname === '/health') {
+        const persistence = health.persistenceStatus?.() || { healthy: true };
         return json(200, {
           service: 'vip-notificaciones',
           startupPhase: health.startupPhase || 'unknown',
@@ -88,6 +89,9 @@ export function server(store, sender, health = {}) {
           whatsappAuthStorage: sender.authStorage || 'unknown',
           whatsappSessionId: sender.authSessionId || null,
           sourceHealthy: health.sourceHealthy ?? true,
+          providerHealthy: health.providerHealthy ?? true,
+          persistenceHealthy: persistence.healthy,
+          notificationsReady: !!sender.ready && persistence.healthy && (health.sourceHealthy ?? true) && (health.providerHealthy ?? true),
           awaitingEvents: store.config.source === 'webhook' && store.status().appointments === 0
         });
       }
@@ -101,6 +105,7 @@ export function server(store, sender, health = {}) {
 
       if (req.method === 'GET' && pathname === '/admin/whatsapp/state') {
         const auth = typeof sender.authStatus === 'function' ? await sender.authStatus().catch(() => null) : null;
+        const persistence = health.persistenceStatus?.() || { healthy: true };
         return json(200, {
           ready: !!sender.ready,
           phase: sender.phase || (sender.ready ? 'ready' : 'starting'),
@@ -110,6 +115,9 @@ export function server(store, sender, health = {}) {
           controlGroupId: store.routes.controlGroupId || '',
           authStorage: sender.authStorage || 'unknown',
           authSessionId: sender.authSessionId || null,
+          persistenceHealthy: persistence.healthy,
+          sourceHealthy: health.sourceHealthy ?? true,
+          providerHealthy: health.providerHealthy ?? true,
           authDocuments: auth?.documents ?? null
         });
       }
@@ -122,7 +130,7 @@ export function server(store, sender, health = {}) {
 
       // Mientras el nuevo deploy espera el lease de MongoDB, solo se permiten
       // consultas de lectura. Así evitamos escribir estado antes de restaurarlo.
-      if (health.startupPhase !== 'ready' && req.method !== 'GET' && req.method !== 'HEAD') {
+      if (health.startupPhase && health.startupPhase !== 'ready' && req.method !== 'GET' && req.method !== 'HEAD') {
         return json(503, { error: 'Servicio iniciando. Intenta nuevamente en unos segundos.' });
       }
 

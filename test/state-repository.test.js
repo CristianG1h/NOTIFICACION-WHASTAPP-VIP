@@ -17,7 +17,7 @@ function fixture(t) {
 
 function memoryMongo() {
   const docs = new Map();
-  let failInsert = false;
+  let failInsert = false, leaseOffline = false;
   const matches = (doc, filter) => Object.entries(filter).every(([key, value]) => {
     if (key === '$or') return value.some(f => matches(doc, f));
     if (value && typeof value === 'object') return Object.entries(value).every(([op, val]) =>
@@ -28,8 +28,11 @@ function memoryMongo() {
     async findOne(filter) { return [...docs.values()].find(d => matches(d, filter)); },
     find(filter) { return { async toArray() { return [...docs.values()].filter(d => matches(d, filter)); } }; },
     async updateOne(filter, change) {
+      if (leaseOffline && filter._id.endsWith(':lease')) throw new Error('MongoDB temporalmente no disponible');
       const existing = await this.findOne(filter);
-      if (!existing && docs.has(filter._id)) throw new Error('duplicate key');
+      if (!existing && docs.has(filter._id)) {
+        const error = new Error('duplicate key'); error.code = 11000; throw error;
+      }
       docs.set(filter._id, { ...(existing || { _id: filter._id }), ...change.$set });
       return { matchedCount: existing ? 1 : 0, upsertedCount: existing ? 0 : 1 };
     },
@@ -37,7 +40,15 @@ function memoryMongo() {
     async deleteMany(filter) { for (const doc of [...docs.values()]) if (matches(doc, filter)) docs.delete(doc._id); },
     async deleteOne(filter) { const doc = await this.findOne(filter); if (doc) docs.delete(doc._id); },
   };
-  return { async connect() {}, async close() {}, db() { return { collection: () => collection }; }, docs, failWrites() { failInsert = true; } };
+  return { async connect() {}, async close() {}, db() { return { collection: () => collection }; }, docs, failWrites() { failInsert = true; }, setLeaseOffline(value) { leaseOffline = value; } };
+}
+
+async function eventually(check, message) {
+  const deadline = Date.now() + 1000;
+  while (!check()) {
+    if (Date.now() >= deadline) assert.fail(message);
+    await new Promise(resolve => setTimeout(resolve, 10));
+  }
 }
 
 test('checkpoint restores appointments, sent markers, claims and message dedup after local loss', async t => {
@@ -64,12 +75,39 @@ test('lease excludes another worker; failed snapshot retains the previous manife
   const repository = await stateRepository(config, store, mongo);
   try {
     await repository.save();
-    await assert.rejects(() => stateRepository(config, store, mongo), /Otro bot/);
+    await assert.rejects(() => stateRepository(config, store, mongo, { waitMs: 30 }), /bloqueo MongoDB/);
     const old = mongo.docs.get('test:mock:manifest').generation;
     store.accept({ id: 'new', version: 1, startsAt: new Date(Date.now() + 600000).toISOString() });
     mongo.failWrites();
     await assert.rejects(() => repository.save());
     assert.equal(mongo.docs.get('test:mock:manifest').generation, old);
+  } finally { await repository.close(); }
+});
+
+test('a transient MongoDB lease outage pauses sending and automatically recovers', async t => {
+  const { store, config } = fixture(t), mongo = memoryMongo();
+  const repository = await stateRepository(config, store, mongo, { renewEveryMs: 20, durationMs: 500 });
+  try {
+    assert.equal(repository.leaseStatus().healthy, true);
+    mongo.setLeaseOffline(true);
+    await eventually(() => !repository.leaseStatus().healthy, 'El lease debe marcarse como perdido');
+    assert.throws(() => repository.assertActive(), /Persistencia\/bloqueo no disponible/);
+    mongo.setLeaseOffline(false);
+    await eventually(() => repository.leaseStatus().healthy, 'El lease debe recuperarse sin reiniciar');
+    assert.doesNotThrow(() => repository.assertActive());
+    await repository.save();
+  } finally { await repository.close(); }
+});
+
+test('a lease owned by another worker stays blocked after renewal attempts', async t => {
+  const { store, config } = fixture(t), mongo = memoryMongo();
+  const repository = await stateRepository(config, store, mongo, { renewEveryMs: 20, durationMs: 500 });
+  try {
+    mongo.docs.set('test:mock:lease', { _id: 'test:mock:lease', owner: 'other-worker', expires: Date.now() + 10000 });
+    await eventually(() => !repository.leaseStatus().healthy, 'No debe enviar con un lease ajeno');
+    assert.throws(() => repository.assertActive(), /Persistencia\/bloqueo no disponible/);
+    await new Promise(resolve => setTimeout(resolve, 65));
+    assert.equal(repository.leaseStatus().healthy, false);
   } finally { await repository.close(); }
 });
 

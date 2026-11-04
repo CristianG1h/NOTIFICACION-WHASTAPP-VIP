@@ -45,7 +45,7 @@ export function mediconecta(config, routes, env = process.env, fetcher = fetch) 
         headers,
         redirect: 'error', signal: AbortSignal.timeout(12000), cache: 'no-store',
       });
-      if (!response.ok) throw new Error('No se pudo consultar la orden en MediConecta');
+      if (!response.ok) throw new Error(`No se pudo consultar la orden en MediConecta (HTTP ${response.status})`);
       const body = await response.json();
       if (body.success !== true || body.data?._id !== id) throw new Error('Respuesta de orden no válida');
       // WhatsApp-managed rosters broadcast to saved phones, independently of a

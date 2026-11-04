@@ -38,9 +38,22 @@ test('provider enriches remote VIP orders and unknown provider blocks doctor rem
   });
   await source.poll(); store.schedule();
   assert.equal(store.get(s.id).doctorId, 'YULI');
-  fail = true; assert.equal(await source.poll(), false);
+  fail = true; assert.equal(await source.poll(), true);
+  assert.equal(source.providerHealthy, false);
   assert.equal(store.get(s.id).doctorId, 'PROVIDER_UNAVAILABLE');
   assert.equal(store.db.prepare("SELECT COUNT(*) AS n FROM jobs WHERE kind='reminder' AND state='pending'").get().n, 0);
+});
+test('a failed MediConecta order does not stop reminders for another verified order', async t => {
+  const { store, env, s } = fixture(t);
+  const good = { ...s, id: 'order-good' }, bad = { ...s, id: 'order-bad' };
+  const source = vipApiSource(store, env, async () => ({ ok: true, status: 200, async json() { return { appointments: [good, bad], nextCursor: null }; } }), {
+    async lookup(id) { if (id === bad.id) throw new Error('HTTP 404'); return { doctorId: 'YULI', form: 'received' }; },
+  });
+  assert.equal(await source.poll(), true);
+  assert.equal(source.providerHealthy, false);
+  store.schedule();
+  assert.equal(store.db.prepare("SELECT COUNT(*) AS n FROM jobs WHERE kind='reminder' AND state='pending'").get().n, 1);
+  assert.equal(store.get(bad.id).doctorId, 'PROVIDER_UNAVAILABLE');
 });
 test('404/auth failure and invalid pagination do not claim successful synchronization', async t => {
   const { store, env, s } = fixture(t);
