@@ -26,33 +26,45 @@ const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
 // Checkpoints are chunked; publishing the manifest is atomic. An interrupted write
 // leaves the previous complete snapshot available. DATA_KEY protects all payloads.
-export async function stateRepository(config, store, clientOverride) {
+export async function stateRepository(config, store, clientOverride, leaseOptions = {}) {
   if (!config.mongoUri && !clientOverride) return null;
-  const { MongoClient } = await import('mongodb');
-  const client = clientOverride || new MongoClient(config.mongoUri, { serverSelectionTimeoutMS: 15000 });
+  let client = clientOverride;
+  if (!client) {
+    const { MongoClient } = await import('mongodb');
+    client = new MongoClient(config.mongoUri, { serverSelectionTimeoutMS: 15000 });
+  }
   await client.connect();
   const collection = (config.mongoDatabase ? client.db(config.mongoDatabase) : client.db()).collection('vip_notification_state');
   const scope = `${config.baileysSessionId}:${config.mode}`, owner = randomUUID();
   const leaseId = `${scope}:lease`;
-  let lost = false, digest, timer, chain = Promise.resolve();
+  const leaseMs = leaseOptions.durationMs ?? 90000;
+  const renewEveryMs = leaseOptions.renewEveryMs ?? 20000;
+  let lost = true, leaseExpires = 0, leaseError = null;
+  let digest, timer, chain = Promise.resolve(), renewal = Promise.resolve();
 
   async function renew() {
     const now = Date.now();
     try {
       const r = await collection.updateOne(
         { _id: leaseId, $or: [{ owner }, { expires: { $lt: now } }] },
-        { $set: { scope, owner, expires: now + 90000 } },
+        { $set: { scope, owner, expires: now + leaseMs } },
         { upsert: true }
       );
       if (!r.matchedCount && !r.upsertedCount) throw new Error('lease ocupado');
-    } catch {
+      const recovered = lost;
+      leaseExpires = now + leaseMs;
+      lost = false;
+      leaseError = null;
+      if (recovered) console.log('[MongoDB] Bloqueo recuperado. Se reanudan los avisos pendientes.');
+    } catch (error) {
       lost = true;
-      throw new Error('Otro bot está activo o no se pudo renovar el bloqueo MongoDB. No se enviarán avisos.');
+      leaseError = error?.code === 11000 ? 'Bloqueo ocupado por otra instancia' : 'No se pudo renovar el bloqueo';
+      throw new Error(`${leaseError}. Se pausan los envíos hasta recuperar el bloqueo de MongoDB.`);
     }
   }
 
   async function acquire() {
-    const waitMs = Math.max(10000, Number(process.env.MONGODB_LEASE_WAIT_MS || 180000));
+    const waitMs = leaseOptions.waitMs ?? Math.max(10000, Number(process.env.MONGODB_LEASE_WAIT_MS || 180000));
     const deadline = Date.now() + waitMs;
     let lastNotice = 0;
 
@@ -61,10 +73,11 @@ export async function stateRepository(config, store, clientOverride) {
       try {
         const r = await collection.updateOne(
           { _id: leaseId, $or: [{ owner }, { expires: { $lt: now } }] },
-          { $set: { scope, owner, expires: now + 90000 } },
+          { $set: { scope, owner, expires: now + leaseMs } },
           { upsert: true }
         );
         if (r.matchedCount || r.upsertedCount) {
+          leaseExpires = now + leaseMs;
           console.log('[MongoDB] Bloqueo adquirido. Este despliegue queda como bot activo.');
           return;
         }
@@ -93,15 +106,23 @@ export async function stateRepository(config, store, clientOverride) {
 
   await acquire();
   lost = false;
-  timer = setInterval(() => { void renew().catch(error => console.error(error.message)); }, 20000);
+  // No solapar renovaciones si MongoDB está lento. Una falla temporal no deja
+  // el bot bloqueado para siempre: el siguiente éxito reactiva el mismo lease.
+  timer = setInterval(() => {
+    renewal = renewal.catch(() => {}).then(renew);
+    void renewal.catch(error => console.error(error.message));
+  }, renewEveryMs);
   timer.unref();
 
   const assertActive = () => {
-    if (lost) throw new Error('Persistencia/bloqueo no disponible. Reinicia cuando MongoDB esté disponible.');
+    if (lost || Date.now() >= leaseExpires) throw new Error('Persistencia/bloqueo no disponible. Se pausaron los avisos hasta recuperar MongoDB.');
   };
 
   return {
     assertActive,
+    leaseStatus() {
+      return { healthy: !lost && Date.now() < leaseExpires, error: leaseError };
+    },
     async restore() {
       const manifest = await collection.findOne({ _id: `${scope}:manifest` });
       if (!manifest) return;
@@ -132,6 +153,7 @@ export async function stateRepository(config, store, clientOverride) {
     },
     async close() {
       clearInterval(timer);
+      await renewal.catch(() => {});
       await chain.catch(() => {});
       try { await collection.deleteOne({ _id: leaseId, owner }); }
       finally { await client.close(); }
